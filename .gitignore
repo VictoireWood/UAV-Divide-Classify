@@ -14,3 +14,4 @@ ign_*
 old*
 *ablations
 *.jpg
+.vscode/launch.json

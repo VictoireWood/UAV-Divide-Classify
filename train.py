@@ -38,6 +38,7 @@ groups = [TrainDataset(args.train_set_path, dataset_name=args.dataset_name, grou
                        min_images_per_class=args.min_images_per_class,
                        transform=train_augmentation
                        ) for n in range(args.N * args.N)]
+#NOTE: 对应论文里的group，一个group对应一个classifier，也就是同一个颜色的方块集合，一共有N*N组，文章里对应2*2=4组
 
 val_dataset = TestDataset(args.val_set_path, M=args.M, N=args.N, image_size=args.test_resize)
 test_dataset = TestDataset(args.test_set_path, M=args.M, N=args.N, image_size=args.test_resize)
@@ -52,8 +53,10 @@ if args.classifier_type == "AAMC":
     classifiers = [AAMC(model.feature_dim, group.get_classes_num(), s=args.lmcc_s, m=args.lmcc_m) for group in groups]
 elif args.classifier_type == "LMCC":
     classifiers = [LMCC(model.feature_dim, group.get_classes_num(), s=args.lmcc_s, m=args.lmcc_m) for group in groups]
+# NOTE: LMMC是CosPlace里用的CosFace Loss，AAMC是本文章中用的ArcFace Loss
 elif args.classifier_type == "FC_CE":
     classifiers = [LinearLayer(model.feature_dim, group.get_classes_num()) for group in groups]
+    #REVIEW: LinearLayer这是什么？
 
 classifiers_optimizers = [torch.optim.Adam(classifier.parameters(), lr=args.classifier_lr) for classifier in classifiers]
 
@@ -66,11 +69,11 @@ logging.info(f"resume_model: {args.resume_model}")
 if args.resume_model is not None:
     model, classifiers = util.resume_model(args, model, classifiers)
 
-cross_entropy_loss = torch.nn.CrossEntropyLoss()
+cross_entropy_loss = torch.nn.CrossEntropyLoss()    #NOTE: 交叉熵损失，应该是softmax通用的loss形式
 
 #### OPTIMIZER & SCHEDULER
 optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=args.scheduler_patience, verbose=True)
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=args.scheduler_patience, verbose=True) #NOTE: 学习率变化
 
 #### Resume
 if args.resume_train:
@@ -105,6 +108,7 @@ for epoch_num in range(start_epoch_num, args.epochs_num):
     model = model.train()
 
     tqdm_bar = tqdm(range(args.iterations_per_epoch), ncols=100, desc="")
+    #NOTE: tqmd.tqmd修饰一个可迭代对象，返回一个与原始可迭代对象完全相同的迭代器，但每次请求值时都会打印一个动态更新的进度条。
     for iteration in tqdm_bar:
         images, labels, _ = next(dataloader_iterator)
         images, labels = images.to(args.device), labels.to(args.device)
