@@ -14,4 +14,7 @@ ign_*
 old*
 *ablations
 *.jpg
+*.png
 .vscode/launch.json
+.ipynb_checkpoints
+.vscode

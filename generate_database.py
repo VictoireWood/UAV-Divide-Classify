@@ -49,7 +49,7 @@ def generate_map_tiles(raw_map_path:str,stride_ratio_str:str,patches_save_dir:st
     map_w = map_data.shape[1]   # 大地图像素宽度
     map_h = map_data.shape[0]   # 大地图像素高度
 
-    gnss_data = raw_map_path.split('\\')[-1]
+    gnss_data = raw_map_path.split('\\/')[-1]
 
     LT_lon = float(gnss_data.split('@')[2]) # left top 左上
     LT_lat = float(gnss_data.split('@')[3])
@@ -70,21 +70,21 @@ def generate_map_tiles(raw_map_path:str,stride_ratio_str:str,patches_save_dir:st
     # 对应地面宽高（像素为单位）
     #LINK: https://cameraharmony.com/wp-content/uploads/2020/03/focal-length-graphic-1-2048x1078.png
     map_tile_meters_w = resolution_w / focal_length * flight_height   # 相机内参矩阵里focal_length的单位是像素
-    map_tile_meters_h = resolution_h / focal_length * flight_height
+    map_tile_meters_h = resolution_h / focal_length * flight_height # NOTE w768*h576
 
     w_h_factor = resolution_w / resolution_h
-    target_h = round(target_w / w_h_factor)         # 最后要resize的高度
+    target_h = round(target_w / w_h_factor)         # 最后要resize的高度(h360,w480)
 
     stride_x = round(pixel_per_meter_factor * map_tile_meters_w * stride_ratio)
     stride_y = round(pixel_per_meter_factor * map_tile_meters_h * stride_ratio)
 
-    # 计算要切多少个tile
-    iter_w = int((map_w - target_w) / stride_x) + 1
-    iter_h = int((map_h - target_h) / stride_y) + 1
-    iter_total = iter_w * iter_h
-
     img_w = round(pixel_per_meter_factor * map_tile_meters_w)
     img_h = round(pixel_per_meter_factor * map_tile_meters_h)
+
+    # 计算要切多少个tile
+    iter_w = int((map_w - img_w) / stride_x) + 1
+    iter_h = int((map_h - img_h) / stride_y) + 1
+    iter_total = iter_w * iter_h
 
     with trange(iter_total, desc=gnss_data) as tbar:
         i = 0
@@ -119,7 +119,8 @@ def generate_map_tiles(raw_map_path:str,stride_ratio_str:str,patches_save_dir:st
 
                 # print('%s.png' % ('@' + LT_cur_lon + '@' + LT_cur_lat + '@' + RB_cur_lon + '@' + RB_cur_lat + '@'))
 
-                cv2.imwrite(patches_save_dir + f'\\@0@{LT_cur_lon}@{LT_cur_lat}@{RB_cur_lon}@{RB_cur_lat}@{CT_utm_e}@{CT_utm_n}.png', img_seg_pad)
+                # cv2.imwrite(patches_save_dir + f'\\@0@{LT_cur_lon}@{LT_cur_lat}@{RB_cur_lon}@{RB_cur_lat}@{CT_utm_e}@{CT_utm_n}@.png', img_seg_pad)
+                cv2.imwrite(patches_save_dir + f'/@0@{LT_cur_lon}@{LT_cur_lat}@{RB_cur_lon}@{RB_cur_lat}@{CT_utm_e}@{CT_utm_n}@.png', img_seg_pad)
 
                 i += 1
 
@@ -130,24 +131,57 @@ def generate_map_tiles(raw_map_path:str,stride_ratio_str:str,patches_save_dir:st
 
 if __name__ == '__main__':
 
-    
-    basedir = r'E:\QingdaoRawMaps'
-    map_dirs = {  
-        "2013": r"E:\QingdaoRawMaps\201310\@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.tif",  
-        "2017": r"E:\QingdaoRawMaps\201710\@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.tif",
-        "2019": r"E:\QingdaoRawMaps\201911\@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.tif",
-        "2020": r"E:\QingdaoRawMaps\202002\@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.tif",  
-        "2022": r"E:\QingdaoRawMaps\202202\@map@120.42118549346924@36.60643328438966@120.4841423034668@36.573836401969416@.tif"  
-    }
-    stride_ratios = {  
-        "2013": 3,  
-        "2017": 4,  
-        "2019": 5,  
-        "2020": 3,  
-        "2022": 4  
-    }
 
-    patches_save_root_dir = f"D:\QingdaoMapTiles" + '\\'  
+    # stage = "train"
+    # stage = "val"
+    stage = "test"
+
+
+    basedir = r'../QDRaw/'
+    # map_dirs = {  
+    #     "2013": r"E:\QingdaoRawMaps\201310\@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.tif",  
+    #     "2017": r"E:\QingdaoRawMaps\201710\@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.tif",
+    #     "2019": r"E:\QingdaoRawMaps\201911\@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.tif",
+    #     "2020": r"E:\QingdaoRawMaps\202002\@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.tif",  
+    #     "2022": r"E:\QingdaoRawMaps\202202\@map@120.42118549346924@36.60643328438966@120.4841423034668@36.573836401969416@.tif"  
+    # }
+    map_dirs = {  
+        "2013": r"../QDRaw/201310/@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg",  
+        "2017": r"../QDRaw/201710/@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg",
+        "2019": r"../QDRaw/201911/@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg",
+        "2020": r"../QDRaw/202002/@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg",  
+        "2022": r"../QDRaw/202202/@map@120.42118549346924@36.60643328438966@120.4841423034668@36.573836401969416@.jpg"  
+    }
+    # train
+    if stage == "train":
+        stride_ratios = {  
+            "2013": 3,  
+            "2017": 4,  
+            "2019": 5,  
+            "2020": 3,  
+            "2022": 4  
+        }
+    # val
+    elif stage == "val":
+        stride_ratios = {  
+            "2013": 2,  
+            "2017": 3,  
+            "2019": 4,  
+            "2020": 5,  
+            "2022": 3  
+        }
+    # test
+    elif stage == "test":
+        stride_ratios = {  
+            "2013": 4,  
+            "2017": 2,  
+            "2019": 3,  
+            "2020": 2,  
+            "2022": 2  
+        }
+
+    # patches_save_root_dir = f"D:\QingdaoMapTiles" + '\\'  
+    patches_save_root_dir = f'../dcqddb_{stage}/'
     flight_height = 450  
 
     total_iterations = len(map_dirs)  # Total iterations  

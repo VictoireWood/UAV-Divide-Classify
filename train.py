@@ -34,10 +34,20 @@ train_augmentation = T.Compose([
         T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
 
-groups = [TrainDataset(args.train_set_path, dataset_name=args.dataset_name, group_num=n, M=args.M, N=args.N,
+# groups = [TrainDataset(args.train_set_path, dataset_name=args.dataset_name, group_num=n, M=args.M, N=args.N,
+#                        min_images_per_class=args.min_images_per_class,
+#                        transform=train_augmentation
+#                        ) for n in range(args.N * args.N)]
+# SECTION
+groups = []
+for n in range(args.N * args.N):
+    group = TrainDataset(args.train_set_path, dataset_name=args.dataset_name, group_num=n, M=args.M, N=args.N,
                        min_images_per_class=args.min_images_per_class,
                        transform=train_augmentation
-                       ) for n in range(args.N * args.N)]
+                       )
+    groups.append(group)
+# !SECTION
+
 #NOTE: 对应论文里的group，一个group对应一个classifier，也就是同一个颜色的方块集合，一共有N*N组，文章里对应2*2=4组
 
 val_dataset = TestDataset(args.val_set_path, M=args.M, N=args.N, image_size=args.test_resize)
@@ -87,16 +97,28 @@ else:
     best_valid_acc = start_epoch_num = 0
     best_loss = 100
 
-scaler = torch.cuda.amp.GradScaler()
+# scaler = torch.cuda.amp.GradScaler('cuda')  # NOTE: 加上了'cuda'参数
+# ORIGION
+scaler = torch.GradScaler('cuda')  # NOTE: 加上了'cuda'参数
+# LINK: https://pytorch.org/docs/stable/amp.html
 for epoch_num in range(start_epoch_num, args.epochs_num):
     if optimizer.param_groups[0]['lr'] < 1e-6:
         logging.info('LR dropped below 1e-6, stopping training...')
         break
-    train_acc = torchmetrics.Accuracy().to(args.device)
+    # train_acc = torchmetrics.Accuracy().to(args.device) # ORIGION train_acc
+    # SECTION
+    classes_num = 0
+    for g in groups:
+        classes_num += g.get_classes_num()
+    classes_num_list = [g.get_classes_num() for g in groups]
+    # !SECTION
+    # train_acc = torchmetrics.Accuracy(task='multiclass', num_classes=classes_num).to(args.device) # EDIT 1 train_acc
+    # train_acc = torchmetrics.Accuracy(task='multiclass', num_classes=classes_num_list[]).to(args.device) # EDIT 2 train_acc
     train_loss = torchmetrics.MeanMetric().to(args.device)
 
     # Select classifier and dataloader according to epoch
     current_group_num = epoch_num % len(classifiers)
+    train_acc = torchmetrics.Accuracy(task='multiclass', num_classes=classes_num_list[current_group_num]).to(args.device) # EDIT 3 train_acc
     classifiers[current_group_num] = classifiers[current_group_num].to(args.device)
     util.move_to_device(classifiers_optimizers[current_group_num], args.device)
 
@@ -116,7 +138,10 @@ for epoch_num in range(start_epoch_num, args.epochs_num):
         optimizer.zero_grad()
         classifiers_optimizers[current_group_num].zero_grad()
 
-        with torch.cuda.amp.autocast():
+        # with torch.cuda.amp.autocast('cuda',enabled=True): # NOTE: 加上了'cuda'参数和enabled  
+        # ORIGION 
+        with torch.autocast('cuda'):    # EDIT
+            # LINK: https://pytorch.org/docs/stable/amp.html
             descriptors = model(images)
             # 1) 'output' is respectively the angular or cosine margin, of the AMCC or LMCC.
             # 2) 'logits' are the logits obtained multiplying the embedding for the
@@ -129,11 +154,13 @@ for epoch_num in range(start_epoch_num, args.epochs_num):
         scaler.step(classifiers_optimizers[current_group_num])
         scaler.update()
 
-        train_acc.update(logits, labels)
+        train_acc.update(logits, labels)    # ORIGION
+        # train_acc.update(logits.transpose(0,1),labels)  # EDIT
         train_loss.update(loss.item())
         tqdm_bar.set_description(f"{loss.item():.1f}")
         del loss, images, output
-        _ = tqdm_bar.refresh()
+        _ = tqdm_bar.refresh()  # ORIGION
+        _ = tqdm_bar.update()   # EDIT
 
     classifiers[current_group_num] = classifiers[current_group_num].cpu()
     util.move_to_device(classifiers_optimizers[current_group_num], "cpu")
@@ -155,7 +182,7 @@ for epoch_num in range(start_epoch_num, args.epochs_num):
                  f"not improved for {scheduler.num_bad_epochs}/{args.scheduler_patience} epochs, " +
                  f"lr: {round(optimizer.param_groups[0]['lr'], 21)}, " +
                  f"classifier_lr: {round(classifiers_optimizers[current_group_num].param_groups[0]['lr'], 21)}")
-    logging.info(f"E{epoch_num: 3d}, Val LR: {val_lr_str}")
+    logging.info(f"E{epoch_num: 3d}, Val LR: {val_lr_str}") # NOTE 测试召回率？
 
     scheduler.step(train_loss)
     util.save_checkpoint({"epoch_num": epoch_num + 1,

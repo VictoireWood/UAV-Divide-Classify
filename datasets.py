@@ -23,12 +23,14 @@ class TestDataset(torch.utils.data.Dataset):
         super().__init__()
         logging.debug(f"Searching test images in {test_folder}")
 
-        images_paths = sorted(glob(f"{test_folder}/**/*.jpg", recursive=True))
+        # images_paths = sorted(glob(f"{test_folder}/**/*.jpg", recursive=True))    # ANCHOR: 原始
+        images_paths = sorted(glob(f"{test_folder}/**/*.png", recursive=True)) # REVIEW: 邵星雨改
 
         logging.debug(f"Found {len(images_paths)} images")
         images_metadatas = [p.split("@") for p in images_paths]
         # field 1 is UTM east, field 2 is UTM north
-        self.utmeast_utmnorth = np.array([(m[1], m[2]) for m in images_metadatas]).astype(np.float64)
+        # self.utmeast_utmnorth = np.array([(m[1], m[2]) for m in images_metadatas]).astype(np.float64)   # ANCHOR: 原始
+        self.utmeast_utmnorth = np.array([(m[-3], m[-2]) for m in images_metadatas]).astype(np.float64)   # REVIEW: 邵星雨改，我设置的图片格式是@角度（默认0）@LT经度lon@LT纬度lat@RB经度@RB纬度@UTM-east@UTM-north@.png
 
         class_id_group_id = [TrainDataset.get__class_id__group_id(*m, M, N) for m in self.utmeast_utmnorth]
         self.images_paths = images_paths
@@ -146,7 +148,8 @@ def initialize(dataset_folder, dataset_name, M, N, min_images_per_class):
     # Search paths of dataset only the first time, and save them in a cached file
     if not os.path.exists(paths_file):
         logging.info(f"Searching training images in {dataset_folder}")
-        images_paths = sorted(glob(f"{dataset_folder}/**/*.jpg", recursive=True))
+        # images_paths = sorted(glob(f"{dataset_folder}/**/*.jpg", recursive=True))   # ANCHOR
+        images_paths = sorted(glob(f"{dataset_folder}/**/*.png", recursive=True))   # REVIEW
         # Remove folder_path from images_path, so that the same cache file can be used on any machine
         images_paths = [p.replace(dataset_folder, "") for p in images_paths]
         os.makedirs("cache", exist_ok=True)
@@ -158,7 +161,8 @@ def initialize(dataset_folder, dataset_name, M, N, min_images_per_class):
 
     images_metadatas = [p.split("@") for p in images_paths]
     # field 1 is UTM east, field 2 is UTM north
-    utmeast_utmnorth = [(m[1], m[2]) for m in images_metadatas]
+    # utmeast_utmnorth = [(m[1], m[2]) for m in images_metadatas] # ANCHOR
+    utmeast_utmnorth = [(m[-3], m[-2]) for m in images_metadatas]
     utmeast_utmnorth = np.array(utmeast_utmnorth).astype(np.float64)
     del images_metadatas
     logging.info("For each image, get its UTM east, UTM north from its path")

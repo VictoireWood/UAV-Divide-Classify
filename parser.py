@@ -27,12 +27,14 @@ def parse_arguments():
     parser.add_argument("-bs", "--batch_size", type=int, default=64, help="_")
     parser.add_argument("--scheduler_patience", type=int, default=10, help="_")
     parser.add_argument("--epochs_num", type=int, default=500, help="_")
-    parser.add_argument("--train_resize", type=int, default=(224, 224), help="_")
+    # parser.add_argument("--train_resize", type=int, default=(224, 224), help="_") # ANCHOR
+    parser.add_argument("--train_resize", type=tuple, default=(360, 480), help="_") # REVIEW
     parser.add_argument("--test_resize", type=int, default=256, help="_")
     parser.add_argument("--lr", type=float, default=0.0001, help="_")
     parser.add_argument("--classifier_lr", type=float, default=0.01, help="_")
     parser.add_argument("-bb", "--backbone", type=str, default="EfficientNet_B0",
-                        choices=["EfficientNet_B0", "EfficientNet_B5", "EfficientNet_B7"],
+                        # choices=["EfficientNet_B0", "EfficientNet_B5", "EfficientNet_B7"],    # ANCHOR 原始
+                        choices=["EfficientNet_B0", "EfficientNet_B5", "EfficientNet_B7","EfficientNet_V2_M"],  # REVIEW 邵星雨改
                         help="_")
 
     # Init parameters
@@ -47,7 +49,8 @@ def parse_arguments():
     parser.add_argument("--exp_name", type=str, default="default",
                         help="name of experiment. The logs will be saved in a folder with such name")
     parser.add_argument("--dataset_name", type=str, default="sf_xl",
-                        choices=["sf_xl", "tokyo247", "pitts30k", "pitts250k"], help="_")
+                        choices=["sf_xl", "tokyo247", "pitts30k", "pitts250k","QingDao_Flight"], help="_")   # REVIEW
+                        # choices=["sf_xl", "tokyo247", "pitts30k", "pitts250k"], help="_") # ANCHOR
     parser.add_argument("--train_set_path", type=str, default=None,
                         help="path to folder of train set")
     parser.add_argument("--val_set_path", type=str, default=None,
