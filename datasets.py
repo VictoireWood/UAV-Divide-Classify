@@ -110,7 +110,8 @@ class TrainDataset(torch.utils.data.Dataset):
         self.transform = transform
         self.classes_ids = classes_ids
         self.images_per_class = images_per_class
-        self.class_centers = [(cl_id[0] + M // 2, cl_id[1] + M // 2) for cl_id in self.classes_ids]
+        # self.class_centers = [(cl_id[0] + M // 2, cl_id[1] + M // 2) for cl_id in self.classes_ids] # ORIGION 这里id只有俩，得加上h
+        self.class_centers = [(cl_id[0], cl_id[1] + M // 2, cl_id[2] + M // 2) for cl_id in self.classes_ids]# EDIT
     
     def __getitem__(self, _):
         # The index is ignored, and each class is sampled uniformly
