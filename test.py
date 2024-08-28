@@ -4,8 +4,15 @@ from tqdm import tqdm
 
 from classifiers import LinearLayer
 
+# EDIT
+import parser
+args = parser.parse_arguments()
+
+
 LR_N = [1, 5, 10, 20]
-threshold = 25
+# threshold = 25  # ORIGION 原来的M=20m，这里设置的是偏移25米算成功召回
+# threshold = 500 # EDIT 这里是要配合M的设定，M设为800米
+threshold = args.threshold  # EDIT
 
 def compute_pred(criterion, descriptors):
     if isinstance(criterion, LinearLayer):

@@ -13,10 +13,20 @@ from collections import defaultdict
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
+# EDIT
+from generate_database import flight_heights
 
 def open_image(path):
     return Image.open(path).convert("RGB")
 
+
+def get_h_utmeast_utmnorth(images_paths):
+    images_metadatas = [p.split("@") for p in images_paths]
+    # field 1 is UTM east, field 2 is UTM north
+    # self.utmeast_utmnorth = np.array([(m[1], m[2]) for m in images_metadatas]).astype(np.float64)   # ANCHOR: 原始
+    # self.utmeast_utmnorth = np.array([(m[-3], m[-2]) for m in images_metadatas]).astype(np.float64)   # REVIEW: 邵星雨改，我设置的图片格式是@角度（默认0）@UTM-east@UTM-north@.png
+    h_utmeast_utmnorth = np.array([(m[-4], m[-3], m[-2]) for m in images_metadatas]).astype(np.float64)   # EDIT: 邵星雨改，我设置的图片格式是@角度（默认0）@高度@UTM-east@UTM-north@.png
+    return h_utmeast_utmnorth
 
 class TestDataset(torch.utils.data.Dataset):
     def __init__(self, test_folder, M=10, N=5, image_size=256):
@@ -27,12 +37,18 @@ class TestDataset(torch.utils.data.Dataset):
         images_paths = sorted(glob(f"{test_folder}/**/*.png", recursive=True)) # REVIEW: 邵星雨改
 
         logging.debug(f"Found {len(images_paths)} images")
+        
+        '''# EDIT 这里写成函数方便复用
         images_metadatas = [p.split("@") for p in images_paths]
         # field 1 is UTM east, field 2 is UTM north
         # self.utmeast_utmnorth = np.array([(m[1], m[2]) for m in images_metadatas]).astype(np.float64)   # ANCHOR: 原始
-        self.utmeast_utmnorth = np.array([(m[-3], m[-2]) for m in images_metadatas]).astype(np.float64)   # REVIEW: 邵星雨改，我设置的图片格式是@角度（默认0）@LT经度lon@LT纬度lat@RB经度@RB纬度@UTM-east@UTM-north@.png
+        # self.utmeast_utmnorth = np.array([(m[-3], m[-2]) for m in images_metadatas]).astype(np.float64)   # REVIEW: 邵星雨改，我设置的图片格式是@角度（默认0）@UTM-east@UTM-north@.png
+        self.h_utmeast_utmnorth = np.array([(m[-4], m[-3], m[-2]) for m in images_metadatas]).astype(np.float64)   # EDIT: 邵星雨改，我设置的图片格式是@角度（默认0）@高度@UTM-east@UTM-north@.png'''
+        self.h_utmeast_utmnorth = get_h_utmeast_utmnorth(images_paths)
 
-        class_id_group_id = [TrainDataset.get__class_id__group_id(*m, M, N) for m in self.utmeast_utmnorth]
+        # class_id_group_id = [TrainDataset.get__class_id__group_id(*m, M, N) for m in self.utmeast_utmnorth] # ORIGION
+        class_id_group_id = [TrainDataset.get__class_id__group_id(*m, M, N, train_dataset=False) for m in self.h_utmeast_utmnorth] # EDIT
+
         self.images_paths = images_paths
         self.class_id = [(id[0][0]+ M // 2, id[0][1]+ M // 2) for id in class_id_group_id]
         self.group_id = [id[1] for id in class_id_group_id]
@@ -52,13 +68,16 @@ class TestDataset(torch.utils.data.Dataset):
         image = self.normalize(pil_image)
         if isinstance(image, tuple):
             image = torch.stack(image, dim=0)
-        return image, tuple(self.utmeast_utmnorth[index])
+        # return image, tuple(self.utmeast_utmnorth[index]) # ORIGION 这里忘改成h_utmeast_utmnorth了
+        return image, tuple(self.h_utmeast_utmnorth[index]) # EDIT 返回类别
+
 
     def __len__(self):
         return len(self.images_paths)
 
     def get_classes_num(self):
         return len(self.dict__cell_id__class_num)
+
 
 
 class TrainDataset(torch.utils.data.Dataset):
@@ -127,18 +146,56 @@ class TrainDataset(torch.utils.data.Dataset):
         return 1000000
 
     @staticmethod
-    def get__class_id__group_id(utm_east, utm_north, M, N):
+    # def get__class_id__group_id(utm_east, utm_north, M, N):   # ORIGION
+    def get__class_id__group_id(h, utm_east, utm_north, M, N, train_dataset = True):     # EDIT
         """Return class_id and group_id for a given point.
             The class_id is a tuple of UTM_east, UTM_north (e.g. (396520, 4983800)).
             The group_id represents the group to which the class belongs
             (e.g. (0, 1), and it is between (0, 0) and (N, N).
+        # EDIT 需要加上高度分组
         """
+        # EDIT
+        # height_groups = []
+        mid_h_num = len(flight_heights) - 1
+        h_num = len(flight_heights)
+        h_start = flight_heights[0] - (flight_heights[1] - flight_heights[0])/2
+        h_end = flight_heights[-1] + (flight_heights[-1] - flight_heights[-2])/2
+        mid_heights = [h_start]
+        for i in range(mid_h_num):
+            mid_h = flight_heights[i] + (flight_heights[i+1] - flight_heights[i])/2
+            mid_heights.append(mid_h)
+        mid_heights.append(h_end)
+
+        h_group_id = 0
+        for i in range(h_num):
+            if h > mid_heights[i] and h < mid_heights[i+1]:
+                h_group_id = i + 1
+                h_class_id = flight_heights[i]  # NOTE: class_id设置成所在区间“中间”高度
+                break
+        if h_group_id == 0: # NOTE: 这里的0相当于是SALAD里的dustbin，class_id将0作为dustbin
+            if train_dataset:
+                logging.info(f"Found a image's flight height cannot be classified: @*@{h}@{utm_east}@{utm_north}@.png, h_group_id, h_class_id = 0")
+                h_class_id = 0  # NOTE: class_id设成零，因为无人机不可能在地面
+            else:
+                if h < mid_heights[0]:
+                    h_group_id, h_class_id = 1, flight_heights[0]
+                else:
+                    h_group_id, h_class_id = h_num, flight_heights[-1]
+        # !EDIT
+
         rounded_utm_east = int(utm_east // M * M)  # Rounded to nearest lower multiple of M
         rounded_utm_north = int(utm_north // M * M)
 
-        class_id = (rounded_utm_east, rounded_utm_north)
+        # class_id = (rounded_utm_east, rounded_utm_north)    # ORIGION
+        class_id = (h_class_id, rounded_utm_east, rounded_utm_north)    # EDIT
+        
         # group_id goes from (0, 0) to (N, N)
+        '''# ORIGION
         group_id = (rounded_utm_east % (M * N) // M,
+                    rounded_utm_north % (M * N) // M)'''
+        # EDIT
+        group_id = (h_group_id,
+                    rounded_utm_east % (M * N) // M,
                     rounded_utm_north % (M * N) // M)
         return class_id, group_id
 
@@ -159,15 +216,22 @@ def initialize(dataset_folder, dataset_name, M, N, min_images_per_class):
 
     logging.info(f"Found {len(images_paths)} images")
 
+    '''# EDIT 函数复用
     images_metadatas = [p.split("@") for p in images_paths]
     # field 1 is UTM east, field 2 is UTM north
     # utmeast_utmnorth = [(m[1], m[2]) for m in images_metadatas] # ANCHOR
-    utmeast_utmnorth = [(m[-3], m[-2]) for m in images_metadatas]
-    utmeast_utmnorth = np.array(utmeast_utmnorth).astype(np.float64)
-    del images_metadatas
+    # utmeast_utmnorth = [(m[-3], m[-2]) for m in images_metadatas]   # EDIT version 1
+    h_utmeast_utmnorth = [(m[-4], m[-3], m[-2]) for m in images_metadatas]  # EDIT: version 2，我设置的图片格式是@角度（默认0）@高度@UTM-east@UTM-north@.png
+    # utmeast_utmnorth = np.array(utmeast_utmnorth).astype(np.float64)    # ORIGION
+    h_utmeast_utmnorth = np.array(h_utmeast_utmnorth).astype(np.float64)    # EDIT 这个分割过程的另一次出现是在TrainDataset的初始化过程
+    del images_metadatas'''
+
+    h_utmeast_utmnorth = get_h_utmeast_utmnorth(images_paths)
+
     logging.info("For each image, get its UTM east, UTM north from its path")
     logging.info("For each image, get class and group to which it belongs")
-    class_id__group_id = [TrainDataset.get__class_id__group_id(*m, M, N) for m in utmeast_utmnorth]
+    # class_id__group_id = [TrainDataset.get__class_id__group_id(*m, M, N) for m in utmeast_utmnorth] # ORIGION
+    class_id__group_id = [TrainDataset.get__class_id__group_id(*m, M, N, train_dataset=True) for m in h_utmeast_utmnorth]   # EDIT
 
     logging.info("Group together images belonging to the same class")
     images_per_class = defaultdict(list)

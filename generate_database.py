@@ -11,24 +11,41 @@ import numpy
 import cv2
 from fractions import Fraction
 from tqdm import tqdm, trange
+import sys
+import platform
+
+flight_heights = [100, 200, 300, 400]
+flight_heights.sort()   # 从小到大排序
+# TODO: 
+# 分辨率
+resolution_w = 2048
+resolution_h = 1536
+# 焦距
+focal_length = 1200  # TODO: the intrinsics of the camera
+
+def photo_area_meters(flight_height):
+    # # 分辨率
+    # resolution_h = 1536
+    # resolution_w = 2048
+    # # 焦距
+    # focal_length = 1200  # TODO: the intrinsics of the camera
+    map_tile_meters_w = resolution_w / focal_length * flight_height   # 相机内参矩阵里focal_length的单位是像素
+    map_tile_meters_h = resolution_h / focal_length * flight_height # NOTE w768*h576
+    return map_tile_meters_h, map_tile_meters_w
 
 
 ## 青岛位于S51区，51区中心经度为123
 def S51_UTM(lon, lat):
-    easting = 500000 + haversine((lat,lon), (lat, 123), unit=Unit.METERS)
+    easting = 500000 + haversine((lat, lon), (lat, 123), unit=Unit.METERS)
     northing = haversine((lat, lon), (0, lon), unit=Unit.METERS)
     return easting, northing
 
 
 def generate_map_tiles(raw_map_path:str,stride_ratio_str:str,patches_save_dir:str):
-    # TODO: 
-    # 分辨率
-    resolution_w = 2048
-    resolution_h = 1536
-    # 焦距
-    focal_length = 1200  # TODO: the intrinsics of the camera
+
     # 飞行高度
-    flight_height = 450 
+    # flight_height = 150
+    flight_height = int(patches_save_dir.split('_')[-1])
 
     #TODO: 
     target_w = 480                  # TODO: set the width corresponding to the shape of your query image
@@ -38,6 +55,14 @@ def generate_map_tiles(raw_map_path:str,stride_ratio_str:str,patches_save_dir:st
 
     # 这是指地图切片的宽度对应到地面上是多长（米为单位）
     # map_tile_heigth_meters = map_tile_width_meters * w_h_factor
+
+    # 对应地面宽高（像素为单位）
+    #LINK: https://cameraharmony.com/wp-content/uploads/2020/03/focal-length-graphic-1-2048x1078.png
+    map_tile_meters_w = resolution_w / focal_length * flight_height   # 相机内参矩阵里focal_length的单位是像素
+    map_tile_meters_h = resolution_h / focal_length * flight_height # NOTE w768*h576
+
+    w_h_factor = resolution_w / resolution_h
+    target_h = round(target_w / w_h_factor)         # NOTE 最后要resize的高度(h360,w480)
 
 
     numerator = int(stride_ratio_str.split('/')[0])
@@ -66,14 +91,6 @@ def generate_map_tiles(raw_map_path:str,stride_ratio_str:str,patches_save_dir:st
     map_height_meters = abs(LT_n - RB_n)
 
     pixel_per_meter_factor = ((map_w / map_width_meters) + (map_h / map_height_meters)) / 2     # 得出来是像素/米，每米对应多少像素
-
-    # 对应地面宽高（像素为单位）
-    #LINK: https://cameraharmony.com/wp-content/uploads/2020/03/focal-length-graphic-1-2048x1078.png
-    map_tile_meters_w = resolution_w / focal_length * flight_height   # 相机内参矩阵里focal_length的单位是像素
-    map_tile_meters_h = resolution_h / focal_length * flight_height # NOTE w768*h576
-
-    w_h_factor = resolution_w / resolution_h
-    target_h = round(target_w / w_h_factor)         # 最后要resize的高度(h360,w480)
 
     stride_x = round(pixel_per_meter_factor * map_tile_meters_w * stride_ratio)
     stride_y = round(pixel_per_meter_factor * map_tile_meters_h * stride_ratio)
@@ -118,9 +135,14 @@ def generate_map_tiles(raw_map_path:str,stride_ratio_str:str,patches_save_dir:st
                 #         '@' + CT_cur_lon + '@' + CT_cur_lat + '@'), img_seg_pad)
 
                 # print('%s.png' % ('@' + LT_cur_lon + '@' + LT_cur_lat + '@' + RB_cur_lon + '@' + RB_cur_lat + '@'))
+                
 
-                # cv2.imwrite(patches_save_dir + f'\\@0@{LT_cur_lon}@{LT_cur_lat}@{RB_cur_lon}@{RB_cur_lat}@{CT_utm_e}@{CT_utm_n}@.png', img_seg_pad)
-                cv2.imwrite(patches_save_dir + f'/@0@{LT_cur_lon}@{LT_cur_lat}@{RB_cur_lon}@{RB_cur_lat}@{CT_utm_e}@{CT_utm_n}@.png', img_seg_pad)
+                filename = f'@0@{flight_height}@{CT_utm_e}@{CT_utm_n}@.png'
+                if platform.system() == "Windows":
+                    cv2.imwrite(f'{patches_save_dir}\\' + filename, img_seg_pad)
+                else:
+                    cv2.imwrite(f'{patches_save_dir}/' + filename, img_seg_pad)
+                    # @高度@角度@utm_e@utm_n@
 
                 i += 1
 
@@ -131,10 +153,10 @@ def generate_map_tiles(raw_map_path:str,stride_ratio_str:str,patches_save_dir:st
 
 if __name__ == '__main__':
 
-
-    # stage = "train"
+    # TODO 分数据集
+    stage = "train"
     # stage = "val"
-    stage = "test"
+    # stage = "test"
 
 
     basedir = r'../QDRaw/'
@@ -145,12 +167,12 @@ if __name__ == '__main__':
     #     "2020": r"E:\QingdaoRawMaps\202002\@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.tif",  
     #     "2022": r"E:\QingdaoRawMaps\202202\@map@120.42118549346924@36.60643328438966@120.4841423034668@36.573836401969416@.tif"  
     # }
-    map_dirs = {  
-        "2013": r"../QDRaw/201310/@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg",  
-        "2017": r"../QDRaw/201710/@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg",
-        "2019": r"../QDRaw/201911/@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg",
-        "2020": r"../QDRaw/202002/@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg",  
-        "2022": r"../QDRaw/202202/@map@120.42118549346924@36.60643328438966@120.4841423034668@36.573836401969416@.jpg"  
+    map_dirs = {
+        "2013": rf"{basedir}201310/@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg",  
+        "2017": rf"{basedir}201710/@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg",
+        "2019": rf"{basedir}201911/@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg",
+        "2020": rf"{basedir}202002/@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg",  
+        "2022": rf"{basedir}202202/@map@120.42118549346924@36.60643328438966@120.4841423034668@36.573836401969416@.jpg"  
     }
     # train
     if stage == "train":
@@ -182,33 +204,36 @@ if __name__ == '__main__':
 
     # patches_save_root_dir = f"D:\QingdaoMapTiles" + '\\'  
     patches_save_root_dir = f'../dcqddb_{stage}/'
-    flight_height = 450  
 
-    total_iterations = len(map_dirs)  # Total iterations  
+
+    for flight_height in flight_heights:
+        h, w = photo_area_meters(flight_height)
+        print(f'height = {flight_height}m   area = {h}m x {w}m')
+        
+
+    total_iterations = len(map_dirs)*len(flight_heights)  # Total iterations  
     current_iteration = 0  # To keep track of progress  
     
-    for year, map_dir in map_dirs.items():  
-        save_dir_year = os.path.join(patches_save_root_dir, f'{year}_{flight_height}')  
-        
-        if not os.path.exists(save_dir_year):  
-            os.makedirs(save_dir_year)  
-        stride_ratio = stride_ratios[year]
+    for year, map_dir in map_dirs.items():
+        for flight_height in flight_heights:
+            save_dir_year = os.path.join(patches_save_root_dir, f'{year}_{flight_height}')  
+            
+            if not os.path.exists(save_dir_year):  
+                os.makedirs(save_dir_year)  
+            stride_ratio = stride_ratios[year]
 
-        patches_save_dir = save_dir_year  # Save directory for the current year  
-        print(f"Saving tiles to: {patches_save_dir} ")  
-        
-        if not os.path.exists(patches_save_dir):  
-            os.mkdir(patches_save_dir)
-        
-        stride_ratio_str = f'1/{stride_ratio}'
+            patches_save_dir = save_dir_year  # Save directory for the current year  
+            print(f"Saving tiles to: {patches_save_dir} ")  
+            
+            if not os.path.exists(patches_save_dir):  
+                os.mkdir(patches_save_dir)
+            
+            stride_ratio_str = f'1/{stride_ratio}'
 
-        generate_map_tiles(map_dir, stride_ratio_str, patches_save_dir)
-        
-        current_iteration += 1  # Increment the progress counter  
+            generate_map_tiles(map_dir, stride_ratio_str, patches_save_dir)
+            
+            current_iteration += 1  # Increment the progress counter  
 
-        # Calculate and display progress  
-        progress = (current_iteration / total_iterations) * 100  
-        print(f"[Progress] {progress:.2f}% complete")  
-
-
-
+            # Calculate and display progress  
+            progress = (current_iteration / total_iterations) * 100  
+            print(f"[Progress] {progress:.2f}% complete")  
