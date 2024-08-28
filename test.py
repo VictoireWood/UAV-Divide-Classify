@@ -55,7 +55,8 @@ def inference(args, model, classifiers, test_dl, groups, num_test_images):
     torch.cuda.empty_cache()  # Release classifiers memory
     lr_ns = []
     for N in LR_N:
-        lr_ns.append(torch.count_nonzero((valid_distances[:, :N] <= 25).any(axis=1)).item() * 100 / num_test_images)
+        # lr_ns.append(torch.count_nonzero((valid_distances[:, :N] <= 25).any(axis=1)).item() * 100 / num_test_images)    # ORIGION
+        lr_ns.append(torch.count_nonzero((valid_distances[:, :N] <= threshold).any(axis=1)).item() * 100 / num_test_images) # EDIT 把判定阈值给改了
 
     gcd_str = ", ".join([f'LR@{N}: {acc:.1f}' for N, acc in zip(LR_N, lr_ns)])
     
