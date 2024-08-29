@@ -14,7 +14,17 @@ from collections import defaultdict
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 # EDIT
-from generate_database import flight_heights
+from generate_database import flight_heights, M_list
+
+h_num = len(flight_heights)
+h_start = flight_heights[0] - (flight_heights[1] - flight_heights[0])/2
+h_end = flight_heights[-1] + (flight_heights[-1] - flight_heights[-2])/2
+mid_heights = [h_start]
+for i in range(h_num - 1):
+    mid_h = flight_heights[i] + (flight_heights[i+1] - flight_heights[i])/2
+    mid_heights.append(mid_h)
+
+# def h2M(h):
 
 def open_image(path):
     return Image.open(path).convert("RGB")
@@ -47,12 +57,17 @@ class TestDataset(torch.utils.data.Dataset):
         self.h_utmeast_utmnorth = get_h_utmeast_utmnorth(images_paths)
 
         # class_id_group_id = [TrainDataset.get__class_id__group_id(*m, M, N) for m in self.utmeast_utmnorth] # ORIGION
-        class_id_group_id = [TrainDataset.get__class_id__group_id(*m, M, N, train_dataset=False) for m in self.h_utmeast_utmnorth] # EDIT
+        # class_id_group_id = [TrainDataset.get__class_id__group_id(*m, M, N, train_dataset=False) for m in self.h_utmeast_utmnorth] # EDIT 1
+        class_id_group_id_M = [TrainDataset.get__class_id__group_id__M(*m, N, train_dataset=False) for m in self.h_utmeast_utmnorth]
 
         self.images_paths = images_paths
-        # self.class_id = [(id[0][0]+ M // 2, id[0][1]+ M // 2) for id in class_id_group_id]  # ORIGION
-        self.class_id = [(id[0][1]+ M // 2, id[0][2]+ M // 2) for id in class_id_group_id]  # EDIT  class_id是(h, utm_e, utm_n)，应该取第二个第三个求坐标
-        self.group_id = [id[1] for id in class_id_group_id]
+        # self.class_id = [(id[0][0]+ M // 2, id[0][1]+ M // 2) for id in class_id_group_id]  # ORIGION 求中心点UTM
+        # self.group_id = [id[1] for id in class_id_group_id] # ORIGION 求group
+
+        self.class_id = [(id_M[0][1]+ id_M[-1] // 2, id_M[0][2]+ id_M[-1] // 2) for id_M in class_id_group_id_M] # EDIT 已经包含了M的信息，class_id是(h, utm_e, utm_n)，应该取第二个第三个求坐标
+        self.group_id = [id_M[1] for id_M in class_id_group_id_M]   # NOTE class_id, group_id, M
+
+        
 
         self.normalize = T.Compose([
             T.Resize(image_size),
@@ -82,7 +97,8 @@ class TestDataset(torch.utils.data.Dataset):
 
 
 class TrainDataset(torch.utils.data.Dataset):
-    def __init__(self, train_path, dataset_name, group_num, M=10, N=5, min_images_per_class=10, transform=None):
+    # def __init__(self, train_path, dataset_name, group_num, M=10, N=5, min_images_per_class=10, transform=None):    # ORIGION
+    def __init__(self, train_path, dataset_name, group_num, N=5, min_images_per_class=10, transform=None):    # EDIT 不输入M，自适应高度
         """
         Parameters
         ----------
@@ -96,10 +112,12 @@ class TrainDataset(torch.utils.data.Dataset):
         """
         super().__init__()
 
-        cache_filename = f"cache/{dataset_name}_M{M}_N{N}_mipc{min_images_per_class}.torch" # ORIGION
+        # cache_filename = f"cache/{dataset_name}_M{M}_N{N}_mipc{min_images_per_class}.torch" # ORIGION
+        cache_filename = f"cache/{dataset_name}_N{N}_H{flight_heights[0]}-{flight_heights[-1]}_mipc{min_images_per_class}.torch" # EDIT 如果M改为自适应的话M会一直变
 
         if not os.path.exists(cache_filename):
-            classes_per_group, images_per_class_per_group = initialize(train_path, dataset_name, M, N, min_images_per_class)
+            # classes_per_group, images_per_class_per_group = initialize(train_path, dataset_name, M, N, min_images_per_class)    # ORIGION
+            classes_per_group, images_per_class_per_group = initialize(train_path, dataset_name, N, min_images_per_class)    # EDIT
             torch.save((classes_per_group, images_per_class_per_group), cache_filename)
         else:
             classes_per_group, images_per_class_per_group = torch.load(cache_filename)
@@ -150,7 +168,8 @@ class TrainDataset(torch.utils.data.Dataset):
 
     @staticmethod
     # def get__class_id__group_id(utm_east, utm_north, M, N):   # ORIGION
-    def get__class_id__group_id(h, utm_east, utm_north, M, N, train_dataset = True):     # EDIT
+    # def get__class_id__group_id(h, utm_east, utm_north, M, N, train_dataset = True):     # EDIT 1
+    def get__class_id__group_id__M(h, utm_east, utm_north, N, train_dataset = True):     # EDIT 2
         """Return class_id and group_id for a given point.
             The class_id is a tuple of UTM_east, UTM_north (e.g. (396520, 4983800)).
             The group_id represents the group to which the class belongs
@@ -159,31 +178,34 @@ class TrainDataset(torch.utils.data.Dataset):
         """
         # EDIT
         # 把这里判断的改成函数？
-        mid_h_num = len(flight_heights) - 1
-        h_num = len(flight_heights)
-        h_start = flight_heights[0] - (flight_heights[1] - flight_heights[0])/2
-        h_end = flight_heights[-1] + (flight_heights[-1] - flight_heights[-2])/2
-        mid_heights = [h_start]
-        for i in range(mid_h_num):
-            mid_h = flight_heights[i] + (flight_heights[i+1] - flight_heights[i])/2
-            mid_heights.append(mid_h)
-        mid_heights.append(h_end)
+        # mid_h_num = len(flight_heights) - 1
+        # h_num = len(flight_heights)
+        # h_start = flight_heights[0] - (flight_heights[1] - flight_heights[0])/2
+        # h_end = flight_heights[-1] + (flight_heights[-1] - flight_heights[-2])/2
+        # mid_heights = [h_start]
+        # for i in range(mid_h_num):
+        #     mid_h = flight_heights[i] + (flight_heights[i+1] - flight_heights[i])/2
+        #     mid_heights.append(mid_h)
+        # mid_heights.append(h_end)
 
         h_group_id = 0
         for i in range(h_num):
             if h > mid_heights[i] and h < mid_heights[i+1]:
-                h_group_id = i + 1
-                h_class_id = flight_heights[i]  # NOTE: class_id设置成所在区间“中间”高度
+                h_group_id = i + 1  # 从1开始
+                h_class_id = flight_heights[i]  # NOTE: class_id设置成所在区间“中间”高度，也就是切的时候的基准高度
+                M = M_list[i]   # NOTE: 自适应M
                 break
         if h_group_id == 0: # NOTE: 这里的0相当于是SALAD里的dustbin，class_id将0作为dustbin
-            if train_dataset:
-                logging.info(f"Found a image's flight height cannot be classified: @*@{h}@{utm_east}@{utm_north}@.png, h_group_id, h_class_id = 0")
+            if train_dataset:   # 如果是训练集
+                logging.debug(f"Found a image's flight height cannot be classified: @*@{h}@{utm_east}@{utm_north}@.png, h_group_id, h_class_id = 0")
                 h_class_id = 0  # NOTE: class_id设成零，因为无人机不可能在地面
-            else:
+                M = None
+            else:               # 如果是测试集
                 if h < mid_heights[0]:
-                    h_group_id, h_class_id = 1, flight_heights[0]
+                    h_group_id, h_class_id, M = 1, flight_heights[0], M_list[1]
                 else:
-                    h_group_id, h_class_id = h_num, flight_heights[-1]
+                    h_group_id, h_class_id, M = h_num, flight_heights[-1], M_list[-1]
+        # 这里的M需要向函数外输出
         # !EDIT
 
         rounded_utm_east = int(utm_east // M * M)  # Rounded to nearest lower multiple of M
@@ -200,10 +222,11 @@ class TrainDataset(torch.utils.data.Dataset):
         group_id = (h_group_id,
                     rounded_utm_east % (M * N) // M,
                     rounded_utm_north % (M * N) // M)
-        return class_id, group_id
+        return class_id, group_id, M
 
 
-def initialize(dataset_folder, dataset_name, M, N, min_images_per_class):
+# def initialize(dataset_folder, dataset_name, M, N, min_images_per_class):   # ORIGION 需要传出M
+def initialize(dataset_folder, dataset_name, N, min_images_per_class):   # 需要传出M
     paths_file = f"cache/paths_{dataset_name}.torch"
     # Search paths of dataset only the first time, and save them in a cached file
     if not os.path.exists(paths_file):
@@ -237,12 +260,21 @@ def initialize(dataset_folder, dataset_name, M, N, min_images_per_class):
     logging.info("For each image, get its UTM east, UTM north from its path")
     logging.info("For each image, get class and group to which it belongs")
     # class_id__group_id = [TrainDataset.get__class_id__group_id(*m, M, N) for m in utmeast_utmnorth] # ORIGION
-    class_id__group_id = [TrainDataset.get__class_id__group_id(*m, M, N, train_dataset=True) for m in h_utmeast_utmnorth]   # EDIT
+    # class_id__group_id = [TrainDataset.get__class_id__group_id(*m, M, N, train_dataset=True) for m in h_utmeast_utmnorth]   # EDIT 1
+    class_id__group_id__M = [TrainDataset.get__class_id__group_id__M(*m, N, train_dataset=False) for m in h_utmeast_utmnorth]    # EDIT 2 需要输出自适应M
+    # class_id__group_id = [c[0:1] for c in class_id__group_id__M]
+    # M_per_class = [c[-1] for c in class_id__group_id__M]
+
+
 
     logging.info("Group together images belonging to the same class")
     images_per_class = defaultdict(list)
     images_per_class_per_group = defaultdict(dict)
-    for image_path, (class_id, _) in zip(images_paths, class_id__group_id):
+
+    # for image_path, (class_id, _, M) in zip(images_paths, class_id__group_id): # ORIGION
+    #     images_per_class[class_id].append(image_path)
+
+    for image_path, (class_id, _, M) in zip(images_paths, class_id__group_id__M): # EDIT
         images_per_class[class_id].append(image_path)
 
     # Images_per_class is a dict where the key is class_id, and the value
@@ -253,10 +285,16 @@ def initialize(dataset_folder, dataset_name, M, N, min_images_per_class):
     # Classes_per_group is a dict where the key is group_id, and the value
     # is a list with the class_ids belonging to that group.
     classes_per_group = defaultdict(set)
-    for class_id, group_id in class_id__group_id:
+
+    '''for class_id, group_id in class_id__group_id:   # ORIGION
         if class_id not in images_per_class:
             continue  # Skip classes with too few images
-        classes_per_group[group_id].add(class_id)
+        classes_per_group[group_id].add(class_id)'''
+    
+    for class_id, group_id, M in class_id__group_id__M:   # EDIT
+        if class_id not in images_per_class:
+            continue  # Skip classes with too few images
+        classes_per_group[group_id].add(class_id)       # FIXME 这里调试一下datasets看看这里应该怎么加
 
     for group_id, group_classes in classes_per_group.items():
         for class_id in group_classes:
