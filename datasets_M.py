@@ -64,7 +64,7 @@ class TestDataset(torch.utils.data.Dataset):
         # self.class_id = [(id[0][0]+ M // 2, id[0][1]+ M // 2) for id in class_id_group_id]  # ORIGION 求中心点UTM
         # self.group_id = [id[1] for id in class_id_group_id] # ORIGION 求group
 
-        self.class_id = [(id_M[0][1]+ id_M[-1] // 2, id_M[0][2]+ id_M[-1] // 2) for id_M in class_id_group_id_M] # EDIT 已经包含了M的信息，class_id是(h, utm_e, utm_n)，应该取第二个第三个求坐标
+        self.class_id = [(id_M[0][0], id_M[0][1]+ id_M[-1] // 2, id_M[0][2]+ id_M[-1] // 2) for id_M in class_id_group_id_M] # EDIT 已经包含了M的信息，class_id是(h, utm_e, utm_n)，应该取第二个第三个求坐标
         self.group_id = [id_M[1] for id_M in class_id_group_id_M]   # NOTE class_id, group_id, M
 
         
@@ -304,5 +304,5 @@ def initialize(dataset_folder, dataset_name, N, min_images_per_class):   # 需�
     classes_per_group = [list(c) for c in classes_per_group.values()]
     images_per_class_per_group = [c for c in images_per_class_per_group.values()]
 
-    return classes_per_group, images_per_class_per_group
+    return classes_per_group, images_per_class_per_group, M_per_group
 

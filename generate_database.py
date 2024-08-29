@@ -15,7 +15,7 @@ import sys
 import platform
 import math
 
-flight_heights = [100, 200, 300, 400]
+flight_heights = [200, 300, 400]
 flight_heights.sort()   # 从小到大排序
 # TODO: 
 # 分辨率
@@ -308,7 +308,8 @@ if __name__ == '__main__':
 
     # patches_save_root_dir = f"D:\QingdaoMapTiles" + '\\'  
     patches_save_root_dir = f'../dcqddb_{stage}/'
-    # patches_save_root_dir = f'../dcqddb_{stage}/'
+    # patches_save_root_dir = f'../dcqddb_{stage}/' # ORIGION
+    patches_save_root_dir = f'/root/shared-storage/shaoxingyu/workspace_backup/dcqddb_{stage}/'
 
     alpha_list = range(0, 360, 30)
 

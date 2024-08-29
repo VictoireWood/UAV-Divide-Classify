@@ -32,8 +32,11 @@ def parse_arguments():
     parser.add_argument("--scheduler_patience", type=int, default=10, help="_")
     parser.add_argument("--epochs_num", type=int, default=500, help="_")
     # parser.add_argument("--train_resize", type=int, default=(224, 224), help="_") # ANCHOR
-    parser.add_argument("--train_resize", type=tuple, default=(360, 480), help="_") # REVIEW
-    parser.add_argument("--test_resize", type=int, default=256, help="_")
+    # parser.add_argument("--train_resize", type=tuple, default=(360, 480), help="_") # REVIEW version 1
+    parser.add_argument("--train_resize", type=int, default=(222, 296), help="_")   # REVIEW
+    # parser.add_argument("--test_resize", type=int, default=256, help="_")           # ANCHOR
+    parser.add_argument("--test_resize", type=int, default=222, help="_")           # REVIEW
+
     parser.add_argument("--lr", type=float, default=0.0001, help="_")
     parser.add_argument("--classifier_lr", type=float, default=0.01, help="_")
     parser.add_argument("-bb", "--backbone", type=str, default="EfficientNet_B0",

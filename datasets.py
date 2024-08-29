@@ -51,7 +51,7 @@ class TestDataset(torch.utils.data.Dataset):
 
         self.images_paths = images_paths
         # self.class_id = [(id[0][0]+ M // 2, id[0][1]+ M // 2) for id in class_id_group_id]  # ORIGION
-        self.class_id = [(id[0][1]+ M // 2, id[0][2]+ M // 2) for id in class_id_group_id]  # EDIT  class_id是(h, utm_e, utm_n)，应该取第二个第三个求坐标
+        self.class_id = [(id[0][0], id[0][1]+ M // 2, id[0][2]+ M // 2) for id in class_id_group_id]  # EDIT  class_id是(h, utm_e, utm_n)，应该取第二个第三个求坐标
         self.group_id = [id[1] for id in class_id_group_id]
 
         self.normalize = T.Compose([
@@ -113,7 +113,7 @@ class TrainDataset(torch.utils.data.Dataset):
         self.classes_ids = classes_ids
         self.images_per_class = images_per_class
         # self.class_centers = [(cl_id[0] + M // 2, cl_id[1] + M // 2) for cl_id in self.classes_ids] # ORIGION 这里id只有俩，得加上h
-        self.class_centers = [(cl_id[0], cl_id[1] + M // 2, cl_id[2] + M // 2) for cl_id in self.classes_ids]# EDIT
+        self.class_centers = [(cl_id[0], cl_id[1] + M // 2, cl_id[2] + M // 2) for cl_id in self.classes_ids]   # EDIT 增加一个高度的center
     
     def __getitem__(self, _):
         # The index is ignored, and each class is sampled uniformly
