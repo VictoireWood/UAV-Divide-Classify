@@ -12,7 +12,10 @@ import util
 import models
 import parser
 import commons
-from datasets import TrainDataset, TestDataset
+# from datasets import TrainDataset, TestDataset  # ANCHOR
+from datasets_M import TrainDataset, TestDataset    # EDIT
+
+
 from classifiers import AAMC, LMCC, LinearLayer, ACLC
 
 args = parser.parse_arguments()
@@ -60,7 +63,13 @@ train_augmentation = T.Compose([
 # SECTION
 groups = []
 for n in range(args.N * args.N):
+    '''# ORIGION 没用到自适应M
     group = TrainDataset(args.train_set_path, dataset_name=args.dataset_name, group_num=n, M=args.M, N=args.N,
+                       min_images_per_class=args.min_images_per_class,
+                       transform=train_augmentation
+                       )'''
+    # EDIT 自适应M，不需要另外输入
+    group = TrainDataset(args.train_set_path, dataset_name=args.dataset_name, group_num=n, N=args.N,
                        min_images_per_class=args.min_images_per_class,
                        transform=train_augmentation
                        )
@@ -70,7 +79,9 @@ for n in range(args.N * args.N):
 #NOTE: 对应论文里的group，一个group对应一个classifier，也就是同一个颜色的方块集合，一共有N*N组，文章里对应2*2=4组
 
 # val_dataset = TestDataset(args.val_set_path, M=args.M, N=args.N, image_size=args.test_resize)   # ORIGION: val_dataset其实没用
-test_dataset = TestDataset(args.test_set_path, M=args.M, N=args.N, image_size=args.test_resize)
+# test_dataset = TestDataset(args.test_set_path, M=args.M, N=args.N, image_size=args.test_resize)     # EDIT v1：还没有用到自适应M
+test_dataset = TestDataset(args.test_set_path, N=args.N, image_size=args.test_resize)     # EDIT v2：用到自适应M
+
 # val_dl = torch.utils.data.DataLoader(dataset=val_dataset, batch_size=1, shuffle=False, num_workers=2, pin_memory=True)  # ORIGION: val_dl最后没用
 test_dl = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=1, shuffle=False, num_workers=2, pin_memory=True)
 
@@ -107,7 +118,10 @@ cross_entropy_loss = torch.nn.CrossEntropyLoss()    #NOTE: 交叉熵损失，应
 
 #### OPTIMIZER & SCHEDULER
 optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=args.scheduler_patience, verbose=True) #NOTE: 学习率变化
+# ORIGION
+# scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=args.scheduler_patience, verbose=True) #NOTE: 学习率变化
+# EDIT
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=args.scheduler_patience)
 
 #### Resume
 if args.resume_train:

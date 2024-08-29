@@ -23,6 +23,7 @@ mid_heights = [h_start]
 for i in range(h_num - 1):
     mid_h = flight_heights[i] + (flight_heights[i+1] - flight_heights[i])/2
     mid_heights.append(mid_h)
+mid_heights.append(h_end)
 
 # def h2M(h):
 
@@ -39,7 +40,8 @@ def get_h_utmeast_utmnorth(images_paths):
     return h_utmeast_utmnorth
 
 class TestDataset(torch.utils.data.Dataset):
-    def __init__(self, test_folder, M=10, N=5, image_size=256):
+    # def __init__(self, test_folder, M=10, N=5, image_size=256):   # ORIGION
+    def __init__(self, test_folder, N=5, image_size=256): # EDIT
         super().__init__()
         logging.debug(f"Searching test images in {test_folder}")
 
@@ -125,6 +127,9 @@ class TrainDataset(torch.utils.data.Dataset):
         images_per_class = images_per_class_per_group[group_num]
 
         self.train_path = train_path
+        flight_height = classes_ids[0][0]
+        M_index = flight_heights.index(flight_height)
+        M = M_list[M_index]
         self.M = M
         self.N = N
         self.transform = transform
@@ -271,10 +276,10 @@ def initialize(dataset_folder, dataset_name, N, min_images_per_class):   # 需�
     images_per_class = defaultdict(list)
     images_per_class_per_group = defaultdict(dict)
 
-    # for image_path, (class_id, _, M) in zip(images_paths, class_id__group_id): # ORIGION
+    # for image_path, (class_id, _, M) in zip(images_paths, class_id__group_id): # ANCHOR
     #     images_per_class[class_id].append(image_path)
 
-    for image_path, (class_id, _, M) in zip(images_paths, class_id__group_id__M): # EDIT
+    for image_path, (class_id, _, _) in zip(images_paths, class_id__group_id__M): # EDIT
         images_per_class[class_id].append(image_path)
 
     # Images_per_class is a dict where the key is class_id, and the value
@@ -291,7 +296,7 @@ def initialize(dataset_folder, dataset_name, N, min_images_per_class):   # 需�
             continue  # Skip classes with too few images
         classes_per_group[group_id].add(class_id)'''
     
-    for class_id, group_id, M in class_id__group_id__M:   # EDIT
+    for class_id, group_id, _ in class_id__group_id__M:   # EDIT
         if class_id not in images_per_class:
             continue  # Skip classes with too few images
         classes_per_group[group_id].add(class_id)       # FIXME 这里调试一下datasets看看这里应该怎么加
@@ -304,5 +309,5 @@ def initialize(dataset_folder, dataset_name, N, min_images_per_class):   # 需�
     classes_per_group = [list(c) for c in classes_per_group.values()]
     images_per_class_per_group = [c for c in images_per_class_per_group.values()]
 
-    return classes_per_group, images_per_class_per_group, M_per_group
+    return classes_per_group, images_per_class_per_group
 

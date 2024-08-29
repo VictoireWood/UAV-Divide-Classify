@@ -16,6 +16,7 @@ import platform
 import math
 
 flight_heights = [200, 300, 400]
+flight_heights = list(set(flight_heights))  # 去除重复元素
 flight_heights.sort()   # 从小到大排序
 # TODO: 
 # 分辨率
