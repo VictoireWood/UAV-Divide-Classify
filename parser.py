@@ -33,7 +33,7 @@ def parse_arguments():
     parser.add_argument("--epochs_num", type=int, default=500, help="_")
     # parser.add_argument("--train_resize", type=int, default=(224, 224), help="_") # ANCHOR
     # parser.add_argument("--train_resize", type=tuple, default=(360, 480), help="_") # REVIEW version 1
-    parser.add_argument("--train_resize", type=int, default=(222, 296), help="_")   # REVIEW
+    parser.add_argument("--train_resize", type=int, default=(222, 296), help="_")   # REVIEW    如果用DINOv2，就改成210*280
     # parser.add_argument("--test_resize", type=int, default=256, help="_")           # ANCHOR
     parser.add_argument("--test_resize", type=int, default=222, help="_")           # REVIEW
 
@@ -45,7 +45,7 @@ def parse_arguments():
                         help="_")
     # EDIT
     # Test parameters
-    parser.add_argument('--threshold', type=int, default=300, help="验证是否成功召回的可容许偏差的距离，单位为米")
+    parser.add_argument('--threshold', type=int, default=None, help="验证是否成功召回的可容许偏差的距离，单位为米")    # REVIEW M自适应的话可以不设置
 
 
     # Init parameters

@@ -13,6 +13,8 @@ LR_N = [1, 5, 10, 20]
 # threshold = 25  # ORIGION 原来的M=20m，这里设置的是偏移25米算成功召回
 # threshold = 500 # EDIT 这里是要配合M的设定，M设为800米
 threshold = args.threshold  # EDIT
+# if threshold is None:
+#     threshold = 
 
 def compute_pred(criterion, descriptors):
     if isinstance(criterion, LinearLayer):
@@ -47,7 +49,7 @@ def inference(args, model, classifiers, test_dl, groups, num_test_images):
                 all_preds_confidences = torch.cat([all_preds_confidences, pred[0]])
                 
             topn_pred_class_id = all_preds_confidences.argsort(descending=True)[:max(LR_N)]
-            pred_class_id = all_preds_utm_centers[topn_pred_class_id]
+            pred_class_id = all_preds_utm_centers[topn_pred_class_id]    # NOTE 这里能不能把从classid里得到自适应M然后得到threshold
             dist=torch.cdist(query_utms.unsqueeze(0), pred_class_id.to(torch.float64))
             valid_distances[query_i] = dist
                 
