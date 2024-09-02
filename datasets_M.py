@@ -25,7 +25,27 @@ for i in range(h_num - 1):
     mid_heights.append(mid_h)
 mid_heights.append(h_end)
 
-# def h2M(h):
+def h2M(h, train_dataset):
+    h_group_id = 0
+    for i in range(h_num):
+        if h > mid_heights[i] and h < mid_heights[i+1]:
+            h_group_id = i + 1  # 从1开始
+            h_class_id = flight_heights[i]  # NOTE: class_id设置成所在区间“中间”高度，也就是切的时候的基准高度
+            M = M_list[i]   # NOTE: 自适应M
+            break
+    if h_group_id == 0: # NOTE: 这里的0相当于是SALAD里的dustbin，class_id将0作为dustbin
+        if train_dataset:   # 如果是训练集
+            # logging.debug(f"Found a image's flight height cannot be classified: @*@{h}@{utm_east}@{utm_north}@.png, h_group_id, h_class_id = 0")
+            h_class_id = 0  # NOTE: class_id设成零，因为无人机不可能在地面
+            M = None
+        else:               # 如果是测试集
+            if h < mid_heights[0]:
+                h_group_id, h_class_id, M = 1, flight_heights[0], M_list[1]
+            else:
+                h_group_id, h_class_id, M = h_num, flight_heights[-1], M_list[-1]
+    return h_group_id, h_class_id, M
+    # 这里的M需要向函数外输出
+    # !EDIT
 
 def open_image(path):
     return Image.open(path).convert("RGB")

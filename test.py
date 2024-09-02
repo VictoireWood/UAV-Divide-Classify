@@ -9,6 +9,7 @@ import parser
 args = parser.parse_arguments()
 
 from generate_database import M_list, flight_heights
+from datasets_M import h2M
 
 
 LR_N = [1, 5, 10, 20]
@@ -35,8 +36,13 @@ def inference(args, model, classifiers, test_dl, groups, num_test_images):
 
     # EDIT 加上可变threshold的初始化
     threshold_list_total = torch.zeros(num_test_images, max(LR_N))
-    threshold_list_total_gt = valid_distances_utm = h_class_pred_list = h_class_gt_list = torch.zeros(num_test_images, max(LR_N))
-        
+
+    # EDIT version 2
+    valid_distances_utm = torch.zeros(num_test_images, max(LR_N))
+    h_class_pred_list = torch.zeros(num_test_images, max(LR_N))
+    threshold_list_total_gt = torch.zeros(num_test_images)
+    h_class_list_gt = torch.zeros(num_test_images)
+
     all_preds_utm_centers = [center for group in groups for center in group.class_centers]
     all_preds_utm_centers = torch.tensor(all_preds_utm_centers).to(args.device)
     
@@ -62,77 +68,64 @@ def inference(args, model, classifiers, test_dl, groups, num_test_images):
 
             # EDIT
             if threshold is None:
-                def id2threshold(id_tensor):
-                    Heights = list(map(int, id_tensor[:,0].tolist())) # 将list中的数值全部变为int类型，作为索引
-                    M_indexes = [flight_heights.index(h) for h in Heights]
-                    M_params = [M_list[idx] for idx in M_indexes]
-                    threshold_list = threshold_M_ratio * M_params
-                    return threshold_list
-                
-                # Heights = list(map(int, pred_class_id[:,0].tolist())) # 将list中的数值全部变为int类型，作为索引
-                # M_indexes = [flight_heights.index(h) for h in Heights]
-                # M_params = [M_list[idx] for idx in M_indexes]
-                # threshold_list = threshold_M_ratio * M_params
-                threshold_list = id2threshold(pred_class_id)
+                Heights = list(map(int, pred_class_id[:,0].tolist())) # 将list中的数值全部变为int类型，作为索引
+                M_indices = [flight_heights.index(h) for h in Heights]
+                M_params = [M_list[idx] for idx in M_indices]
+                threshold_list = M_params
 
-                # Heights_gt = list(map(int, query_utms[:,0].tolist())) # 将list中的数值全部变为int类型，作为索引
-                # M_indexes_gt = [flight_heights.index(h) for h in Heights_gt]
-                # M_params_gt = [M_list[idx] for idx in M_indexes_gt]
-                # threshold_list_gt = threshold_M_ratio * M_params_gt
-                threshold_list_gt = id2threshold(query_utms)
+                # EDIT version 2
+                _, height_id_gt, M_gt = h2M(query_utms[0], False)
+                threshold_gt = threshold_M_ratio * M_gt
 
             else:
                 threshold_list = [threshold] * max(LR_N)    # 所有元素都相同
-                threshold_list_gt = threshold_list
+                threshold_gt = threshold
 
             dist = torch.cdist(query_utms.unsqueeze(0), pred_class_id.to(torch.float64))
 
-            h_class_pred = pred_class_id[:,0].int().squeeze(1)
-            h_class_gt = query_utms[:,0].int().squeeze(1)
+            h_class_pred = pred_class_id[:,0].int()
 
-            dist_utm = torch.cdist(query_utms.unsqueeze(0)[:,1:2], pred_class_id.to(torch.float64)[:,1:2])
+            dist_utm = torch.cdist(query_utms.unsqueeze(0)[:,1:], pred_class_id.to(torch.float64)[:,1:])    # EDIT version 2
 
             valid_distances[query_i] = dist
-            threshold_list_total[query_i] = torch.tensor(threshold_list)
 
-            threshold_list_total_gt[query_i] = torch.tensor(threshold_list_gt)
+            threshold_list_total[query_i] = torch.tensor(threshold_list)    # EDIT version 1，可变阈值
+
+            # EDIT version 2 改变判别方式
+            threshold_list_total_gt[query_i] = threshold_gt
             valid_distances_utm[query_i] = dist_utm
             h_class_pred_list[query_i] = h_class_pred
-            h_class_gt_list[query_i] = h_class_gt
+            h_class_list_gt[query_i] = height_id_gt
 
     classifiers = [c.cpu() for c in classifiers]
     torch.cuda.empty_cache()  # Release classifiers memory
     lr_ns = []
-    lr_ns_height = []
-    lr_ns_utm = []
+    lr_ns_height = []   # EDIT 加上高度判别结果
     for N in LR_N:
         # lr_ns.append(torch.count_nonzero((valid_distances[:, :N] <= 25).any(axis=1)).item() * 100 / num_test_images)    # ORIGION  计算20个cell有多少成功匹配的
         # lr_ns.append(torch.count_nonzero((valid_distances[:, :N] <= threshold).any(axis=1)).item() * 100 / num_test_images) # EDIT 把判定阈值给改了
 
         # EDIT
         valid_list = []
-        valid_h_list = []
+        valid_h_list = torch.zeros((num_test_images, N), dtype=torch.bool)   # EDIT 加上高度正确率的判别
         for img_idx in range(num_test_images):
             # valid_topn = [valid_distances[img_idx, n] <= threshold_list_total[img_idx, n] for n in range(N)]            # ANCHOR 判别距离的时候也加上高度上的距离
-            valid_topn = [valid_distances_utm[img_idx, n] <= threshold_list_total_gt[img_idx, n] for n in range(N)]     # REVIEW 判别距离的时候只考虑水平面的距离
-            
+            valid_topn = [valid_distances_utm[img_idx, n] <= threshold_list_total_gt[img_idx] for n in range(N)]     # REVIEW 判别距离的时候只考虑水平面的距离
+
             valid_list.append(valid_topn) # EDIT 改成可以自适应的阈值
 
             # EDIT 加一个对高度的判别
-            valid_topn_h = [h_class_pred_list[n] == h_class_gt_list[n] for n in range(N)]
-            valid_h_list.append(valid_topn_h)
+            valid_topn_h = (h_class_pred_list[img_idx, :N] == h_class_list_gt[img_idx])
+            valid_h_list[img_idx, :] = valid_topn_h
 
 
         lr_ns.append(torch.count_nonzero(torch.tensor(valid_list).any(axis=1)).item() * 100 / num_test_images)
 
-        lr_ns_height.append(torch.count_nonzero(torch.tensor(valid_h_list).any(axis=1)).item() * 100 / num_test_images)
-
-
+        lr_ns_height.append(torch.count_nonzero(valid_h_list.any(axis=1)).item() * 100 / num_test_images)
 
     gcd_str = ", ".join([f'LR@{N}: {acc:.1f}' for N, acc in zip(LR_N, lr_ns)])
 
-    gcd_h_str = ", ".join([f'LR@{N}: {acc:.1f}' for N, acc in zip(LR_N, lr_ns_height)])
+    gcd_h_str = ", ".join([f'LR@{N}: {acc:.1f}' for N, acc in zip(LR_N, lr_ns_height)])     # EDIT 增加高度判别正确率的log
     
-    # return gcd_str    # ANCHOR
     return gcd_str, gcd_h_str
 

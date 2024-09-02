@@ -42,8 +42,8 @@ for flight_height in flight_heights:
     print(f'height = {flight_height}m   area = {h}m x {w}m')
     rounded_gap = 10
     M = (w // rounded_gap + 1) * rounded_gap
-    # M_list.append(w)
-    M_list.append(M)
+    M_list.append(w)
+    # M_list.append(M)
 
 
 
