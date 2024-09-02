@@ -204,7 +204,8 @@ for epoch_num in range(start_epoch_num, args.epochs_num):
     util.move_to_device(classifiers_optimizers[current_group_num], "cpu")
 
     #### Validation
-    val_lr_str = test.inference(args, model, classifiers, test_dl, groups, len(test_dataset))
+    # val_lr_str = test.inference(args, model, classifiers, test_dl, groups, len(test_dataset))   # ANCHOR
+    val_lr_str, val_lr_h_str = test.inference(args, model, classifiers, test_dl, groups, len(test_dataset))   # REVIEW 加高度判断
 
     train_acc = train_acc.compute() * 100
     train_loss = train_loss.compute()
@@ -221,6 +222,10 @@ for epoch_num in range(start_epoch_num, args.epochs_num):
                  f"lr: {round(optimizer.param_groups[0]['lr'], 21)}, " +
                  f"classifier_lr: {round(classifiers_optimizers[current_group_num].param_groups[0]['lr'], 21)}")
     logging.info(f"E{epoch_num: 3d}, Val LR: {val_lr_str}") # NOTE 测试召回率？
+    
+    # EDIT 加一个记录高度的判别
+    logging.info(f"E{epoch_num: 3d}, Val Height LR: {val_lr_h_str}")
+
 
     scheduler.step(train_loss)
     util.save_checkpoint({"epoch_num": epoch_num + 1,
