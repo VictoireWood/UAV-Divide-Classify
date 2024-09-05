@@ -46,7 +46,10 @@ for flight_height in flight_heights:
     M_list.append(w)
     # M_list.append(M)
 
-
+if platform.system() == "Windows":
+    slash = '\\'
+else:
+    slash = '/'
 
 ## 青岛位于S51区，51区中心经度为123
 def S51_UTM(lon, lat):
@@ -58,14 +61,6 @@ def degree2rad(degree):
     return degree * numpy.pi / 180
 
 def crop_rot_img_wo_border(image, crop_width, crop_height, crop_center_x, crop_center_y, angle):
-    if angle == 0:
-        x1 = int(crop_center_x - crop_width / 2)
-        y1 = int(crop_center_y - crop_height / 2)
-        x2 = int(crop_center_x + crop_width / 2)
-        y2 = int(crop_center_y + crop_height / 2)
-        result = image[y1:y2, x1:x2]
-        return image
-
     # 裁剪并旋转图像
     half_crop_width = (crop_width / 2)
     half_crop_height = (crop_height / 2)
@@ -113,11 +108,14 @@ def crop_rot_img_wo_border(image, crop_width, crop_height, crop_center_x, crop_c
     def rotate_image(image, angle, new_w, new_h):
         (h, w) = image.shape[:2]
         (cx, cy) = (w // 2, h // 2)
+
         # 计算旋转矩阵
         M = cv2.getRotationMatrix2D((cx, cy), angle, 1.0)
+
         # 调整旋转矩阵的平移部分
         M[0, 2] += (new_w / 2) - cx
         M[1, 2] += (new_h / 2) - cy
+
         # 执行旋转并返回新图像
         rotated = cv2.warpAffine(image, M, (new_w, new_h))
         return rotated
@@ -158,7 +156,7 @@ def generate_map_tiles(raw_map_path:str, stride_ratio_str:str, patches_save_dir:
     map_w = map_data.shape[1]   # 大地图像素宽度
     map_h = map_data.shape[0]   # 大地图像素高度
 
-    gnss_data = raw_map_path.split('\\/')[-1]
+    gnss_data = raw_map_path.split(slash)[-1]
 
     LT_lon = float(gnss_data.split('@')[2]) # left top 左上
     LT_lat = float(gnss_data.split('@')[3])
@@ -217,11 +215,11 @@ def generate_map_tiles(raw_map_path:str, stride_ratio_str:str, patches_save_dir:
                     filename = f'@{rotation_angle}@{flight_height}@{CT_utm_e}@{CT_utm_n}@.png'
                     # @角度@高度@utm_e@utm_n@.png
 
-                    if os.path.exists(filename):
-                        i += 1
-                        tbar.set_postfix(rate=i/iter_total, tiles=i)
-                        tbar.update()
-                        continue
+                    # if os.path.exists(filename):
+                    #     i += 1
+                    #     tbar.set_postfix(rate=i/iter_total, tiles=i)
+                    #     tbar.update()
+                    #     continue
 
                     img_seg_pad = crop_rot_img_wo_border(map_data, img_w, img_h, crop_center_x, crop_center_y, rotation_angle)
 
@@ -242,12 +240,12 @@ def generate_map_tiles(raw_map_path:str, stride_ratio_str:str, patches_save_dir:
                         # print('%s.png' % ('@' + LT_cur_lon + '@' + LT_cur_lat + '@' + RB_cur_lon + '@' + RB_cur_lat + '@'))
                         
 
-                        
+                        save_file_path = f'{patches_save_dir}{slash}' + filename
 
-                        if platform.system() == "Windows":
-                            save_file_path = f'{patches_save_dir}\\' + filename
-                        else:
-                            save_file_path = f'{patches_save_dir}/' + filename
+                        # if platform.system() == "Windows":
+                        #     save_file_path = f'{patches_save_dir}\\' + filename
+                        # else:
+                        #     save_file_path = f'{patches_save_dir}/' + filename
 
 
                         cv2.imwrite(save_file_path, img_seg_pad)
@@ -272,7 +270,8 @@ if __name__ == '__main__':
     # stage = "test"
 
 
-    basedir = r'/root/shared-storage/shaoxingyu/workspace_backup/QDRaw/'
+    basedir = r'E:\QDRaw'+'\\'
+    # basedir = r'/root/shared-storage/shaoxingyu/workspace_backup/QDRaw/'
     # map_dirs = {  
     #     "2013": r"E:\QingdaoRawMaps\201310\@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.tif",  
     #     "2017": r"E:\QingdaoRawMaps\201710\@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.tif",
@@ -281,11 +280,11 @@ if __name__ == '__main__':
     #     "2022": r"E:\QingdaoRawMaps\202202\@map@120.42118549346924@36.60643328438966@120.4841423034668@36.573836401969416@.tif"  
     # }
     map_dirs = {
-        "2013": rf"{basedir}201310/@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg",  
-        "2017": rf"{basedir}201710/@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg",
-        "2019": rf"{basedir}201911/@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg",
-        "2020": rf"{basedir}202002/@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg",  
-        "2022": rf"{basedir}202202/@map@120.42118549346924@36.60643328438966@120.4841423034668@36.573836401969416@.jpg"  
+        "2013": rf"{basedir}201310{slash}@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg",  
+        "2017": rf"{basedir}201710{slash}@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg",
+        "2019": rf"{basedir}201911{slash}@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg",
+        "2020": rf"{basedir}202002{slash}@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg",  
+        "2022": rf"{basedir}202202{slash}@map@120.42118549346924@36.60643328438966@120.4841423034668@36.573836401969416@.jpg"  
     }
     # train
     if stage == "train":
@@ -317,7 +316,8 @@ if __name__ == '__main__':
 
     # patches_save_root_dir = f"D:\QingdaoMapTiles" + '\\'  
     # patches_save_root_dir = f'../dcqddb_{stage}/' # ORIGION
-    patches_save_root_dir = f'/root/shared-storage/shaoxingyu/workspace_backup/dcqddb_{stage}/'
+    patches_save_root_dir = f'E:\\GeoVINS\\dcqddb_{stage}/'
+    # patches_save_root_dir = f'/root/shared-storage/shaoxingyu/workspace_backup/dcqddb_{stage}/'
 
     alpha_list = range(0, 360, 30)
 
