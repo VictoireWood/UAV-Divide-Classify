@@ -14,6 +14,7 @@ from tqdm import tqdm, trange
 import sys
 import platform
 import math
+import utm
 
 flight_heights = [200, 300, 400]
 flight_heights = list(set(flight_heights))  # 去除重复元素
@@ -164,14 +165,18 @@ def generate_map_tiles(raw_map_path:str, stride_ratio_str:str, patches_save_dir:
     RB_lon = float(gnss_data.split('@')[4]) # right bottom 右下
     RB_lat = float(gnss_data.split('@')[5])
 
-    LT_e, LT_n = S51_UTM(LT_lon, LT_lat)
-    RB_e, RB_n = S51_UTM(RB_lon, RB_lat)
-
     lon_res = (RB_lon - LT_lon) / map_w     # 大地图的纬线方向每像素代表的经度跨度
     lat_res = (RB_lat - LT_lat) / map_h     # 大地图的经线方向每像素代表的纬度跨度
 
-    map_width_meters = abs(LT_e - RB_e)
-    map_height_meters = abs(LT_n - RB_n)
+    # map_width_meters = abs(LT_e - RB_e)
+    # map_height_meters = abs(LT_n - RB_n)
+
+    mid_lat = (LT_lat + RB_lat) / 2
+    mid_lon = (LT_lon + RB_lon) / 2
+
+    map_width_meters = haversine((mid_lat, LT_lon), (mid_lat, RB_lon), unit=Unit.METERS)
+    map_height_meters = haversine((LT_lat, mid_lon), (RB_lat, mid_lon), unit=Unit.METERS)
+    pixel_per_meter_factor = ((map_w / map_width_meters) + (map_h / map_height_meters)) / 2     # 得出来是像素/米，每米对应多少像素
 
     pixel_per_meter_factor = ((map_w / map_width_meters) + (map_h / map_height_meters)) / 2     # 得出来是像素/米，每米对应多少像素
 
@@ -201,7 +206,8 @@ def generate_map_tiles(raw_map_path:str, stride_ratio_str:str, patches_save_dir:
                 CT_cur_lat = str((loc_y + img_h / 2) * lat_res + LT_lat)
                 CT_cur_lon_ = (loc_x + img_w / 2) * lon_res + LT_lon    # centre
                 CT_cur_lat_ = (loc_y + img_h / 2) * lat_res + LT_lat
-                CT_utm_e, CT_utm_n = S51_UTM(CT_cur_lon_, CT_cur_lat_)
+                # CT_utm_e, CT_utm_n = S51_UTM(CT_cur_lon_, CT_cur_lat_)
+                CT_utm_e, CT_utm_n, _, _ = utm.from_latlon(CT_cur_lat_, CT_cur_lon_)
 
                 crop_center_x = loc_x + img_w / 2
                 crop_center_y = loc_y + img_h / 2
