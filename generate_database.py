@@ -251,6 +251,7 @@ def generate_map_tiles(raw_map_path:str, stride_ratio_str:str, patches_save_dir:
 
 
                         cv2.imwrite(save_file_path, img_seg_pad)
+                        # cv2.imshow('image',img_seg_pad)
                             
 
                     i += 1
@@ -271,7 +272,7 @@ if __name__ == '__main__':
     # stage = "test"
 
 
-    basedir = r'../QDRaw/'
+    basedir = r'/root/shared-storage/shaoxingyu/workspace_backup/QDRaw/'
     # map_dirs = {  
     #     "2013": r"E:\QingdaoRawMaps\201310\@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.tif",  
     #     "2017": r"E:\QingdaoRawMaps\201710\@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.tif",
