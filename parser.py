@@ -41,8 +41,13 @@ def parse_arguments():
     parser.add_argument("--classifier_lr", type=float, default=0.01, help="_")
     parser.add_argument("-bb", "--backbone", type=str, default="EfficientNet_B0",
                         # choices=["EfficientNet_B0", "EfficientNet_B5", "EfficientNet_B7"],    # ANCHOR 原始
-                        choices=["EfficientNet_B0", "EfficientNet_B5", "EfficientNet_B7","EfficientNet_V2_M"],  # REVIEW 邵星雨改
+                        choices=["EfficientNet_B0", "EfficientNet_B5", "EfficientNet_B7", "EfficientNet_V2_M", "dinov2_vitb14", "dinov2_vits14"],  # REVIEW 邵星雨改
                         help="_")
+    
+    parser.add_argument("-agg", "--aggregator", type=str, default="MixVPR",
+                        choices=["MixVPR", "CosPlace", "ConvAP", "GeMPool"],
+                        help="_")   # EDIT
+
     # EDIT
     # Test parameters
     parser.add_argument('--threshold', type=int, default=None, help="验证是否成功召回的可容许偏差的距离，单位为米")    # REVIEW M自适应的话可以不设置
@@ -75,6 +80,10 @@ def parse_arguments():
     if args.exp_name == "default":
         args.exp_name = f'udc-{args.backbone}-{args.classifier_type}-{args.N}-{args.M}-h{flight_heights[0]}~{flight_heights[-1]}'
 
+
+    if 'dinov2' in args.backbone.lower():
+        args.train_resize = (210, 280)
+        args.test_resize = 210
 
     args.save_dir = os.path.join("logs", args.exp_name, datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
 

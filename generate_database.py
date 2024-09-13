@@ -16,7 +16,15 @@ import platform
 import math
 import utm
 
-flight_heights = [200, 300, 400]
+
+def bool_based_on_probability(true_probability=0.5):
+    import random
+    return random.random() < true_probability
+
+# flight_heights = [200, 300, 400]
+flight_heights = [150]
+# flight_heights = [160, 170, 180, 190, 200]
+# flight_heights = [175, 200]
 flight_heights = list(set(flight_heights))  # 去除重复元素
 flight_heights.sort()   # 从小到大排序
 # TODO: 
@@ -212,6 +220,14 @@ def generate_map_tiles(raw_map_path:str, stride_ratio_str:str, patches_save_dir:
 
                 for rotation_angle in rotation_angles:
 
+                    # NOTE 如果不想全部生成
+                    # random_cut = bool_based_on_probability(0.4)
+                    # if not random_cut:
+                    #     i += 1
+                    #     tbar.set_postfix(rate=i/iter_total)
+                    #     tbar.update()
+                    #     continue
+
                     filename = f'@{rotation_angle}@{flight_height}@{CT_utm_e}@{CT_utm_n}@.png'
                     # @角度@高度@utm_e@utm_n@.png
 
@@ -253,7 +269,7 @@ def generate_map_tiles(raw_map_path:str, stride_ratio_str:str, patches_save_dir:
                             
 
                     i += 1
-                    tbar.set_postfix(rate=i/iter_total, tiles=i)
+                    tbar.set_postfix(rate=i/iter_total)
                     tbar.update()
 
 
@@ -270,8 +286,8 @@ if __name__ == '__main__':
     # stage = "test"
 
 
-    basedir = r'E:\QDRaw'+'\\'
-    # basedir = r'/root/shared-storage/shaoxingyu/workspace_backup/QDRaw/'
+    # basedir = r'E:\QDRaw'+'\\'
+    basedir = r'/root/shared-storage/shaoxingyu/workspace_backup/QDRaw/'
     # map_dirs = {  
     #     "2013": r"E:\QingdaoRawMaps\201310\@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.tif",  
     #     "2017": r"E:\QingdaoRawMaps\201710\@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.tif",
@@ -316,8 +332,8 @@ if __name__ == '__main__':
 
     # patches_save_root_dir = f"D:\QingdaoMapTiles" + '\\'  
     # patches_save_root_dir = f'../dcqddb_{stage}/' # ORIGION
-    patches_save_root_dir = f'E:\\GeoVINS\\dcqddb_{stage}/'
-    # patches_save_root_dir = f'/root/shared-storage/shaoxingyu/workspace_backup/dcqddb_{stage}/'
+    # patches_save_root_dir = f'E:\\GeoVINS\\dcqddb_{stage}/'
+    patches_save_root_dir = f'/root/shared-storage/shaoxingyu/workspace_backup/dcqd150_{stage}/'
 
     alpha_list = range(0, 360, 30)
 

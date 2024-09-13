@@ -9,7 +9,7 @@ from torch import optim
 
 import test
 import util
-import models
+import models_origin
 import parser
 import commons
 # from datasets import TrainDataset, TestDataset  # ANCHOR
@@ -86,7 +86,7 @@ test_dataset = TestDataset(args.test_set_path, N=args.N, image_size=args.test_re
 test_dl = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=1, shuffle=False, num_workers=2, pin_memory=True)
 
 #### Model
-model = models.GeoClassNet(args.backbone).to(args.device)
+model = models_origin.GeoClassNet(args.backbone).to(args.device)
 
 # NEW: Adaptive Curriculum Learning Loss 我改成ACLC(Adaptive Curriculum Learning Classifier)
 
@@ -170,7 +170,7 @@ for epoch_num in range(start_epoch_num, args.epochs_num):
     tqdm_bar = tqdm(range(args.iterations_per_epoch), ncols=100, desc="")
     #NOTE: tqmd.tqmd修饰一个可迭代对象，返回一个与原始可迭代对象完全相同的迭代器，但每次请求值时都会打印一个动态更新的进度条。
     for iteration in tqdm_bar:
-        images, labels, _ = next(dataloader_iterator)
+        images, labels, _ = next(dataloader_iterator)   # return tensor_image, class_num, class_center
         images, labels = images.to(args.device), labels.to(args.device)
 
         optimizer.zero_grad()

@@ -18,3 +18,5 @@ old*
 .vscode/launch.json
 .ipynb_checkpoints
 .vscode
+cache*
+logs

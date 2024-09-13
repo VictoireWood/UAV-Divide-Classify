@@ -5,7 +5,7 @@ import logging
 
 import test
 import util
-import models
+import models_origin
 import parser
 import commons
 from classifiers import AAMC, LMCC, LinearLayer
@@ -32,7 +32,7 @@ test_dataset = TestDataset(args.test_set_path, N=args.N, image_size=args.test_re
 test_dl = DataLoader(dataset=test_dataset, batch_size=1, shuffle=False, num_workers=2, pin_memory=True)
 
 #### Model
-model = models.GeoClassNet(args.backbone).to(args.device)
+model = models_origin.GeoClassNet(args.backbone).to(args.device)
 
 # Each group has its own classifier, which depends on the number of classes in the group
 if args.classifier_type == "AAMC":

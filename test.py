@@ -80,6 +80,7 @@ def inference(args, model, classifiers, test_dl, groups, num_test_images):
             else:
                 threshold_list = [threshold] * max(LR_N)    # 所有元素都相同
                 threshold_gt = threshold
+                _, height_id_gt, _  = h2M(query_utms[0], False)
 
             dist = torch.cdist(query_utms.unsqueeze(0), pred_class_id.to(torch.float64))
 
