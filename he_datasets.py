@@ -90,8 +90,8 @@ class TestDataset(torch.utils.data.Dataset):
         image = self.normalize(pil_image)
         if isinstance(image, tuple):
             image = torch.stack(image, dim=0)
-        # return image, tuple(self.utmeast_utmnorth[index]) # ORIGION 这里忘改成h_utmeast_utmnorth了
-        return image, tuple(self.h_utmeast_utmnorth[index]) # EDIT 返回类别
+        return image, tuple(self.utmeast_utmnorth[index]) # ORIGION 这里忘改成h_utmeast_utmnorth了
+        # return image, tuple(self.h_utmeast_utmnorth[index]) # EDIT 返回类别
 
 
     def __len__(self):

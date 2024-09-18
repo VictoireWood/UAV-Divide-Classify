@@ -109,6 +109,9 @@ agg_config={
 }   # the output dim will be (out_rows * out_channels)
 
 
+# GeM
+# agg_config={}
+
 model = helper.GeoClassNet(args.backbone, backbone_info=backbone_info,aggregator=args.aggregator,agg_config=agg_config)
 
 model = model.to(args.device)
