@@ -91,7 +91,8 @@ test_dl = DataLoader(dataset=test_dataset, batch_size=1, shuffle=False, num_work
 #### Model
 backbone_info = {
     'scheme': 'adapter',
-    'foundation_model_path': '/root/.cache/torch/hub/checkpoints/dinov2_vitb14_pretrain.pth',
+    # 'foundation_model_path': '/root/.cache/torch/hub/checkpoints/dinov2_vitb14_pretrain.pth',
+    'foundation_model_path': '/root/workspace/crikff47v38s73fnfgdg/backup/dinov2_vitb14_pretrain.pth',
     'input_size': (210, 280),
     # 'input_size': 518,
     # 'input_size': 210,
