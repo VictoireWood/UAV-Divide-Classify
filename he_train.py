@@ -266,7 +266,7 @@ for epoch_num in range(start_epoch_num, args.epochs_num):
     }, is_best, args.save_dir)
     torch.cuda.empty_cache()
 
-test_lr_str = test.inference(args, model, classifiers, test_dl, groups, len(test_dataset))  # ANCHOR
+test_lr_str = he_test.inference(args, model, classifiers, test_dl, groups, len(test_dataset))  # ANCHOR
 # test_lr_str, test_h_str = test.inference(args, model, classifiers, test_dl, groups, len(test_dataset))  # REVIEW
 
 logging.info(f"Test LR: {test_lr_str}")

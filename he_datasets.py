@@ -33,12 +33,18 @@ def get_utmeast_utmnorth(images_paths):
     # field 1 is UTM east, field 2 is UTM north
     # self.utmeast_utmnorth = np.array([(m[1], m[2]) for m in images_metadatas]).astype(np.float64)   # ANCHOR: 原始
     # self.utmeast_utmnorth = np.array([(m[-3], m[-2]) for m in images_metadatas]).astype(np.float64)   # REVIEW: 邵星雨改，我设置的图片格式是@角度（默认0）@UTM-east@UTM-north@.png
+    utmeast_utmnorth = []
     for m in images_metadatas:
-        try:
-            utmeast_utmnorth = np.array([m[-3], m[-2]]).astype(np.float64)
-        except:
-            utmeast_utmnorth = np.array([m[-4], m[-3]]).astype(np.float64)
-    # utmeast_utmnorth = np.array([(m[-3], m[-2]) for m in images_metadatas]).astype(np.float64)   # EDIT: 邵星雨改，我设置的图片格式是@角度（默认0）@高度@UTM-east@UTM-north@.png
+        utmeast_str = m[-3]
+        utmnorth_str = m[-2]
+        utmeast_float64 = np.float64(utmeast_str)
+        utmnorth_float64 = np.float64(utmnorth_str)
+        utmeast_utmnorth_m = (utmeast_float64, utmnorth_float64)
+        utmeast_utmnorth.append(utmeast_utmnorth_m)
+
+        # utmeast_utmnorth = np.array([(m[-3], m[-2]) for m in images_metadatas]).astype(np.float64)   # EDIT: 邵星雨改，我设置的图片格式是@角度（默认0）@高度@UTM-east@UTM-north@.png
+    # utmeast_utmnorth = np.array([(m[-3], m[-2])] for m in images_metadatas).astype(np.float64)
+    utmeast_utmnorth = np.array(utmeast_utmnorth)
     return utmeast_utmnorth
 
 
