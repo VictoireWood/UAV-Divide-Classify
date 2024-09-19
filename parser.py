@@ -78,7 +78,7 @@ def parse_arguments():
 
     # EDIT
     if args.exp_name == "default":
-        args.exp_name = f'udc-{args.backbone}-{args.classifier_type}-{args.N}-{args.M}-h{flight_heights[0]}~{flight_heights[-1]}'
+        args.exp_name = f'udc-{args.backbone}-{args.classifier_type}-{args.aggregator}-{args.N}-{args.M}-h{flight_heights[0]}~{flight_heights[-1]}'
 
 
     if 'dinov2' in args.backbone.lower():

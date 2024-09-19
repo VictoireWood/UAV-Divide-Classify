@@ -58,28 +58,33 @@ def get_aggregator(agg_arch:str='MixVPR', agg_config:dict={}):
     """
     
     if 'cosplace' in agg_arch.lower():
-        assert 'in_dim' in agg_config
-        assert 'out_dim' in agg_config
-        return aggregators.CosPlace(**agg_config)
+        agg_config_tmp = {key:value for key,value in agg_config.items() if key == 'in_dim' or key == 'out_dim'}
+        assert 'in_dim' in agg_config_tmp
+        assert 'out_dim' in agg_config_tmp
+        return aggregators.CosPlace(**agg_config_tmp)
 
     elif 'gem' in agg_arch.lower():
-        if agg_config == {}:
+        agg_config_tmp = {key:value for key,value in agg_config.items() if key == 'p' or key == 'eps'}
+        if agg_config_tmp == {}:
+            agg_config_tmp['p'] = 3
             agg_config['p'] = 3
         else:
-            assert 'p' in agg_config
-        return aggregators.GeMPool(**agg_config)
+            assert 'p' in agg_config_tmp
+        return aggregators.GeMPool(**agg_config_tmp)
     
     elif 'convap' in agg_arch.lower():
-        assert 'in_channels' in agg_config
-        return aggregators.ConvAP(**agg_config)
+        agg_config_tmp = {key:value for key,value in agg_config.items() if key == 'in_channels'}
+        assert 'in_channels' in agg_config_tmp
+        return aggregators.ConvAP(**agg_config_tmp)
     
     elif 'mixvpr' in agg_arch.lower():
-        assert 'in_channels' in agg_config
-        assert 'out_channels' in agg_config
-        assert 'in_h' in agg_config
-        assert 'in_w' in agg_config
-        assert 'mix_depth' in agg_config
-        return aggregators.MixVPR(**agg_config)
+        agg_config_tmp = {key:value for key,value in agg_config.items() if key == 'in_channels' or key == 'out_channels' or key == 'in_h' or key == 'in_w' or key == 'mix_depth'}
+        assert 'in_channels' in agg_config_tmp
+        assert 'out_channels' in agg_config_tmp
+        assert 'in_h' in agg_config_tmp
+        assert 'in_w' in agg_config_tmp
+        assert 'mix_depth' in agg_config_tmp
+        return aggregators.MixVPR(**agg_config_tmp)
 
 def freeze_dinov2_train_adapter(model:nn.Module):
     ## Freeze parameters except adapter
@@ -123,11 +128,15 @@ class GeoClassNet(nn.Module):
         # self.pool = get_pooling()
         agg_config['in_h'] = input_size[0] // 14
         agg_config['in_w'] = input_size[1] // 14
-        agg_config['out_channels'] = agg_config['in_channels'] // 2 # REVIEW
-        pass
-        self.aggregator = get_aggregator(agg_arch=aggregator, agg_config=agg_config)
+        if aggregator == 'MixVPR':
+            agg_config['out_channels'] = agg_config['in_channels'] // 2 # REVIEW
+            pass
+            self.aggregator = get_aggregator(agg_arch=aggregator, agg_config=agg_config)
+            out_channels = agg_config['out_channels'] * agg_config['out_rows']   # EDIT
+        else:
+            self.aggregator = get_aggregator(agg_arch=aggregator, agg_config=agg_config)
+            out_channels = self.aggregator(torch.zeros(1, agg_config['in_channels'], agg_config['in_h'], agg_config['in_w'])).shape[1]
         self.agg_config = agg_config
-        out_channels = agg_config['out_channels'] * agg_config['out_rows']   # EDIT
         self.classifier = nn.Sequential(
             nn.Linear(out_channels, out_channels),
             L2Norm()

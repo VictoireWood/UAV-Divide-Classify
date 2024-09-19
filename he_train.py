@@ -98,19 +98,21 @@ backbone_info = {
     # 'input_size': 210,
 }
 
+# agg_config={
+#     # 'in_channels' : 1280,
+#     # 'in_h' : 12,
+#     # 'in_w' : 15,
+#     'out_channels' : 640,
+#     'mix_depth' : 4,
+#     'mlp_ratio' : 1,
+#     'out_rows' : 4,
+# }   # the output dim will be (out_rows * out_channels)
+
+
+## GeM
 agg_config={
-    # 'in_channels' : 1280,
-    # 'in_h' : 12,
-    # 'in_w' : 15,
-    'out_channels' : 640,
-    'mix_depth' : 4,
-    'mlp_ratio' : 1,
-    'out_rows' : 4,
-}   # the output dim will be (out_rows * out_channels)
-
-
-# GeM
-# agg_config={}
+    'p': 3,
+}
 
 model = helper.GeoClassNet(args.backbone, backbone_info=backbone_info,aggregator=args.aggregator,agg_config=agg_config)
 
