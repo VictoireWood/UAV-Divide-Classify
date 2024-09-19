@@ -239,7 +239,7 @@ for epoch_num in range(start_epoch_num, args.epochs_num):
     util.move_to_device(classifiers_optimizers[current_group_num], "cpu")
 
     #### Validation
-    val_lr_str, val_h_str = he_test.inference(args, model, classifiers, test_dl, groups, len(test_dataset))
+    val_lr_str = he_test.inference(args, model, classifiers, test_dl, groups, len(test_dataset))
 
     train_acc = train_acc.compute() * 100
     train_loss = train_loss.compute()
@@ -257,7 +257,7 @@ for epoch_num in range(start_epoch_num, args.epochs_num):
                  f"classifier_lr: {round(classifiers_optimizers[current_group_num].param_groups[0]['lr'], 21)}")
     logging.info(f"E{epoch_num: 3d}, Val LR: {val_lr_str}") # NOTE 测试召回率？
 
-    logging.info(f"E{epoch_num: 3d}, Val height LR: {val_h_str}")   # EDIT 加上高度分类正确率的百分比
+    # logging.info(f"E{epoch_num: 3d}, Val height LR: {val_h_str}")   # EDIT 加上高度分类正确率的百分比
 
     scheduler.step(train_loss)
     util.save_checkpoint({"epoch_num": epoch_num + 1,
