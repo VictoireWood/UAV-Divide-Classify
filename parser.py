@@ -48,6 +48,8 @@ def parse_arguments():
     parser.add_argument("-agg", "--aggregator", type=str, default="MixVPR",
                         choices=["MixVPR", "CosPlace", "ConvAP", "GeMPool","AvgPool"],
                         help="_")   # EDIT
+    
+    parser.add_argument("-mcl","--model_classifier_layer", type=bool, default=True, help="_")
 
     # EDIT
     # Test parameters
@@ -79,7 +81,7 @@ def parse_arguments():
 
     # EDIT
     if args.exp_name == "default":
-        args.exp_name = f'udc-{args.backbone}-{args.classifier_type}-{args.aggregator}-{args.N}-{args.M}-h{flight_heights[0]}~{flight_heights[-1]}'
+        args.exp_name = f'udc-{args.backbone}-{args.classifier_type}-{args.aggregator}-self.classifier_{args.model_classifier_layer}-{args.N}-{args.M}-h{flight_heights[0]}~{flight_heights[-1]}'
 
 
     if 'dinov2' in args.backbone.lower():

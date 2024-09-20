@@ -106,8 +106,18 @@ if 'dinov2' in args.backbone.lower():
             'input_size': (210, 280),
             'num_trainable_blocks': 0,
         }
+elif 'efficientnet_v2' in args.backbone.lower():
+    backbone_info = {
+        'input_size': (210, 280),
+        'layers_to_freeze': 8
+    }
+elif 'efficientnet' in args.backbone.lower():
+    backbone_info = {
+        'input_size': (210, 280),
+        'layers_to_freeze': 5
+    }
 
-if args.aggregator == 'MixVPR':
+if 'mixvpr' in args.aggregator.lower():
     agg_config = {
         # 'in_channels' : 1280,
         # 'in_h' : 12,
@@ -117,7 +127,7 @@ if args.aggregator == 'MixVPR':
         'mlp_ratio' : 1,
         'out_rows' : 4,
     } # the output dim will be (out_rows * out_channels)
-elif args.aggregator == 'GeM':
+elif 'gem' in args.aggregator.lower():
     agg_config={
         'p': 3,
     }
