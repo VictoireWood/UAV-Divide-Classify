@@ -85,6 +85,12 @@ def get_aggregator(agg_arch:str='MixVPR', agg_config:dict={}):
         assert 'in_w' in agg_config_tmp
         assert 'mix_depth' in agg_config_tmp
         return aggregators.MixVPR(**agg_config_tmp)
+    elif 'avgpool' in agg_arch.lower():
+        agg = nn.Sequential(
+            nn.AdaptiveAvgPool2d(output_size=(1, 1)),   #REVIEW: 自适应池化
+            Flatten(),
+        )
+        return agg
 
 def freeze_dinov2_train_adapter(model:nn.Module):
     ## Freeze parameters except adapter
@@ -146,9 +152,9 @@ class GeoClassNet(nn.Module):
     def forward(self, x):
         x = self.backbone(x)['x_norm_patchtokens']
         x = x.view(x.shape[0], self.agg_config['in_h'], self.agg_config['in_w'], x.shape[2]).permute(0, 3, 1, 2)
-        # x = self.pool(x)
+        # x = self.pool(x)          # ANCHOR
         x = self.aggregator(x)
-        x = self.classifier(x)
+        # x = self.classifier(x)    # ORIGIN
         return x
 
 def get_output_dim(model, input_size=(32, 3, 210, 280)):

@@ -43,9 +43,10 @@ def parse_arguments():
                         # choices=["EfficientNet_B0", "EfficientNet_B5", "EfficientNet_B7"],    # ANCHOR 原始
                         choices=["EfficientNet_B0", "EfficientNet_B5", "EfficientNet_B7", "EfficientNet_V2_M", "dinov2_vitb14", "dinov2_vits14"],  # REVIEW 邵星雨改
                         help="_")
+    parser.add_argument("-ds","--dinov2_scheme", type=str, default="adapter", choices=["adapter", "finetune"], help="_")  # REVIEW 邵星雨加
     
     parser.add_argument("-agg", "--aggregator", type=str, default="MixVPR",
-                        choices=["MixVPR", "CosPlace", "ConvAP", "GeMPool"],
+                        choices=["MixVPR", "CosPlace", "ConvAP", "GeMPool","AvgPool"],
                         help="_")   # EDIT
 
     # EDIT

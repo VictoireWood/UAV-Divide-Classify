@@ -89,14 +89,23 @@ test_dataset = TestDataset(args.test_set_path, M=args.M, N=args.N, image_size=ar
 test_dl = DataLoader(dataset=test_dataset, batch_size=1, shuffle=False, num_workers=2, pin_memory=True)
 
 #### Model
-backbone_info = {
-    'scheme': 'adapter',
-    # 'foundation_model_path': '/root/.cache/torch/hub/checkpoints/dinov2_vitb14_pretrain.pth',
-    'foundation_model_path': '/root/workspace/crikff47v38s73fnfgdg/backup/dinov2_vitb14_pretrain.pth',
-    'input_size': (210, 280),
-    # 'input_size': 518,
-    # 'input_size': 210,
-}
+if 'dinov2' in args.backbone.lower():
+    if args.dinov2_scheme == 'adapter':
+        backbone_info = {
+            'scheme': 'adapter',
+            # 'foundation_model_path': '/root/.cache/torch/hub/checkpoints/dinov2_vitb14_pretrain.pth',
+            'foundation_model_path': '/root/shared-storage/shaoxingyu/hub/checkpoints/dinov2_vitb14_pretrain.pth',
+            'input_size': (210, 280),
+            # 'input_size': 518,
+            # 'input_size': 210,
+        }
+    elif args.dinov2_scheme == 'finetune':
+        backbone_info = {
+            'scheme': 'finetune',
+            # 'foundation_model_path': '/root/.cache/torch/hub/checkpoints/dinov2_vitb14_pretrain.pth',
+            'input_size': (210, 280),
+            'num_trainable_blocks': 0,
+        }
 
 # agg_config={
 #     # 'in_channels' : 1280,
