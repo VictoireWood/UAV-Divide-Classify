@@ -148,10 +148,18 @@ class GeoClassNet(nn.Module):
             L2Norm()
         )
         self.feature_dim = out_channels
+        self.backbone_arch = backbone
+        self.backbone_info = backbone_info
 
     def forward(self, x):
-        x = self.backbone(x)['x_norm_patchtokens']
-        x = x.view(x.shape[0], self.agg_config['in_h'], self.agg_config['in_w'], x.shape[2]).permute(0, 3, 1, 2)
+        if 'dinov2' in self.backbone_arch:
+            if self.backbone_info['scheme'] == 'adapter':
+                x = self.backbone(x)['x_norm_patchtokens']
+                x = x.view(x.shape[0], self.agg_config['in_h'], self.agg_config['in_w'], x.shape[2]).permute(0, 3, 1, 2)
+            else:
+                x = self.backbone(x)
+        else:
+            x = self.backbone(x)
         # x = self.pool(x)          # ANCHOR
         x = self.aggregator(x)
         # x = self.classifier(x)    # ORIGIN
