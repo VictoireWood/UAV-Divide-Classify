@@ -104,7 +104,7 @@ if 'dinov2' in args.backbone.lower():
             'scheme': 'finetune',
             # 'foundation_model_path': '/root/.cache/torch/hub/checkpoints/dinov2_vitb14_pretrain.pth',
             'input_size': (210, 280),
-            'num_trainable_blocks': 0,
+            'num_trainable_blocks': args.train_blocks_num,
         }
 elif 'efficientnet_v2' in args.backbone.lower():
     backbone_info = {

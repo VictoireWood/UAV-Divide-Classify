@@ -44,6 +44,7 @@ def parse_arguments():
                         choices=["EfficientNet_B0", "EfficientNet_B5", "EfficientNet_B7", "EfficientNet_V2_M", "dinov2_vitb14", "dinov2_vits14"],  # REVIEW 邵星雨改
                         help="_")
     parser.add_argument("-ds","--dinov2_scheme", type=str, default="adapter", choices=["adapter", "finetune"], help="_")  # REVIEW 邵星雨加
+    parser.add_argument("-tbn","--train_blocks_num", type=int, default=0, help="_")
     
     parser.add_argument("-agg", "--aggregator", type=str, default="MixVPR",
                         choices=["MixVPR", "CosPlace", "ConvAP", "GeMPool","AvgPool"],
@@ -81,7 +82,13 @@ def parse_arguments():
 
     # EDIT
     if args.exp_name == "default":
-        args.exp_name = f'udc-{args.backbone}-{args.classifier_type}-{args.aggregator}-self.classifier_{args.model_classifier_layer}-{args.N}-{args.M}-h{flight_heights[0]}~{flight_heights[-1]}'
+        # args.exp_name = f'udc-{args.backbone}-{args.classifier_type}-{args.aggregator}-self.classifier_{args.model_classifier_layer}-{args.N}-{args.M}-h{flight_heights[0]}~{flight_heights[-1]}'
+        if 'dinov2' in args.backbone.lower():
+            args.exp_name = f'udc-{args.backbone}-{args.dinov2_scheme}-{args.classifier_type}-{args.aggregator}-self.classifier_{args.model_classifier_layer}-{args.N}-{args.M}-h{flight_heights[0]}~{flight_heights[-1]}'
+            if args.dinov2_scheme == 'finetune':
+                args.exp_name = f'{args.exp_name}-finetune_train_blocks_{args.train_blocks_num}'
+        else:
+            args.exp_name = f'udc-{args.backbone}-{args.classifier_type}-{args.aggregator}-self.classifier_{args.model_classifier_layer}-{args.N}-{args.M}-h{flight_heights[0]}~{flight_heights[-1]}'
 
 
     if 'dinov2' in args.backbone.lower():
