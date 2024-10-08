@@ -156,7 +156,7 @@ model = helper.GeoClassNet(args.backbone, backbone_info=backbone_info,aggregator
 
 model = model.to(args.device)
 
-if 'dinov2' in args.backwbone.lower() and backbone_info['scheme']=='adapter':
+if 'dinov2' in args.backbone.lower() and backbone_info['scheme']=='adapter':
     model = helper.freeze_dinov2_train_adapter(model)
     model = helper.init_adapter(model)
 
