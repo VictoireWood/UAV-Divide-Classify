@@ -125,6 +125,12 @@ def get_aggregator(agg_arch:str='MixVPR', agg_config:dict={}):
             Flatten(),
         )
         return agg
+    elif 'cricavpr' in agg_arch.lower():
+        agg_config_tmp = {key:value for key,value in agg_config.items() if key == 'in_channels'}
+        assert 'in_channels' in agg_config_tmp
+        agg = aggregators.CricaVPR(**agg_config_tmp)
+        return agg
+
 
 def freeze_dinov2_train_adapter(model:nn.Module):
     ## Freeze parameters except adapter

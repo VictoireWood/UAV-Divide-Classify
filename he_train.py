@@ -95,7 +95,8 @@ if 'dinov2' in args.backbone.lower():
             'scheme': 'adapter',
             # 'foundation_model_path': '/root/.cache/torch/hub/checkpoints/dinov2_vitb14_pretrain.pth',
             'foundation_model_path': '/root/shared-storage/shaoxingyu/hub/checkpoints/dinov2_vitb14_pretrain.pth',
-            'input_size': (210, 280),
+            # 'input_size': (210, 280),
+            'input_size': args.train_resize,
             # 'input_size': 518,
             # 'input_size': 210,
         }
@@ -103,17 +104,20 @@ if 'dinov2' in args.backbone.lower():
         backbone_info = {
             'scheme': 'finetune',
             # 'foundation_model_path': '/root/.cache/torch/hub/checkpoints/dinov2_vitb14_pretrain.pth',
-            'input_size': (210, 280),
+            # 'input_size': (210, 280),
+            'input_size': args.train_resize,
             'num_trainable_blocks': args.train_blocks_num,
         }
 elif 'efficientnet_v2' in args.backbone.lower():
     backbone_info = {
-        'input_size': (210, 280),
+        # 'input_size': (210, 280),
+        'input_size': args.train_resize,
         'layers_to_freeze': 8
     }
 elif 'efficientnet' in args.backbone.lower():
     backbone_info = {
-        'input_size': (210, 280),
+        # 'input_size': (210, 280),
+        'input_size': args.train_resize,
         'layers_to_freeze': 5
     }
 
@@ -152,7 +156,7 @@ model = helper.GeoClassNet(args.backbone, backbone_info=backbone_info,aggregator
 
 model = model.to(args.device)
 
-if 'dinov2' in args.backbone.lower() and backbone_info['scheme']=='adapter':
+if 'dinov2' in args.backwbone.lower() and backbone_info['scheme']=='adapter':
     model = helper.freeze_dinov2_train_adapter(model)
     model = helper.init_adapter(model)
 

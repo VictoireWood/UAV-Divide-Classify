@@ -33,9 +33,13 @@ def parse_arguments():
     parser.add_argument("--epochs_num", type=int, default=500, help="_")
     # parser.add_argument("--train_resize", type=int, default=(224, 224), help="_") # ANCHOR
     # parser.add_argument("--train_resize", type=tuple, default=(360, 480), help="_") # REVIEW version 1
-    parser.add_argument("--train_resize", type=int, default=(222, 296), help="_")   # REVIEW    如果用DINOv2，就改成210*280
+    # parser.add_argument("--train_resize", type=int, default=(222, 296), help="_")   # REVIEW    如果用DINOv2，就改成210*280
+    # parser.add_argument("--train_resize", type=int, default=(210, 280), help="_")   # REVIEW    干脆DINOv2和CNN都用这个尺寸
+    parser.add_argument("--train_resize", type=int, default=(336, 448), help="_")   # REVIEW    李老师用的是这个尺寸
     # parser.add_argument("--test_resize", type=int, default=256, help="_")           # ANCHOR
-    parser.add_argument("--test_resize", type=int, default=222, help="_")           # REVIEW
+    # parser.add_argument("--test_resize", type=int, default=222, help="_")           # REVIEW
+    # parser.add_argument("--test_resize", type=int, default=210, help="_")           # REVIEW   干脆DINOv2和CNN都用这个尺寸
+    parser.add_argument("--test_resize", type=int, default=336, help="_")           # REVIEW   李老师用的是这个尺寸
 
     parser.add_argument("--lr", type=float, default=0.0001, help="_")
     parser.add_argument("--classifier_lr", type=float, default=0.01, help="_")
@@ -47,7 +51,7 @@ def parse_arguments():
     parser.add_argument("-tbn","--train_blocks_num", type=int, default=0, help="_")
     
     parser.add_argument("-agg", "--aggregator", type=str, default="MixVPR",
-                        choices=["MixVPR", "CosPlace", "ConvAP", "GeMPool","AvgPool"],
+                        choices=["MixVPR", "CosPlace", "ConvAP", "GeMPool","AvgPool", "CricaVPR"],
                         help="_")   # EDIT
     
     parser.add_argument("-mcl","--model_classifier_layer", type=bool, default=True, help="_")
@@ -91,9 +95,9 @@ def parse_arguments():
             args.exp_name = f'udc-{args.backbone}-{args.classifier_type}-{args.aggregator}-self.classifier_{args.model_classifier_layer}-{args.N}-{args.M}-h{flight_heights[0]}~{flight_heights[-1]}'
 
 
-    if 'dinov2' in args.backbone.lower():
-        args.train_resize = (210, 280)
-        args.test_resize = 210
+    # if 'dinov2' in args.backbone.lower():
+    #     args.train_resize = (210, 280)
+    #     args.test_resize = 210
 
     args.save_dir = os.path.join("logs", args.exp_name, datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
 
