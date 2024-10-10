@@ -3,18 +3,64 @@ import sys
 import torch
 import logging
 
-import test
+import he_test
 import util
-import models_origin
 import parser
 import commons
 from classifiers import AAMC, LMCC, LinearLayer
-from datasets import initialize, TrainDataset, TestDataset
-
+from he_datasets import initialize, TrainDataset, TestDataset
+from models.helper import GeoClassNet
 
 args = parser.parse_arguments()
-assert args.train_set_path is not None, 'you must specify the train set path'
+# assert args.train_set_path is not None, 'you must specify the train set path'
 assert args.test_set_path is not None, 'you must specify the test set path'
+
+if 'dinov2' in args.backbone.lower():
+    if args.dinov2_scheme == 'adapter':
+        backbone_info = {
+            'scheme': 'adapter',
+            # 'foundation_model_path': '/root/.cache/torch/hub/checkpoints/dinov2_vitb14_pretrain.pth',
+            'foundation_model_path': '/root/shared-storage/shaoxingyu/hub/checkpoints/dinov2_vitb14_pretrain.pth',
+            # 'input_size': (210, 280),
+            'input_size': args.train_resize,
+            # 'input_size': 518,
+            # 'input_size': 210,
+        }
+    elif args.dinov2_scheme == 'finetune':
+        backbone_info = {
+            'scheme': 'finetune',
+            # 'input_size': (210, 280),
+            'input_size': args.train_resize,
+            'num_trainable_blocks': args.train_blocks_num,
+        }
+elif 'efficientnet_v2' in args.backbone.lower():
+    backbone_info = {
+        # 'input_size': (210, 280),
+        'input_size': args.train_resize,
+        'layers_to_freeze': 8
+    }
+elif 'efficientnet' in args.backbone.lower():
+    backbone_info = {
+        # 'input_size': (210, 280),
+        'input_size': args.train_resize,
+        'layers_to_freeze': 5
+    }
+
+if 'mixvpr' in args.aggregator.lower():
+    agg_config = {
+        'out_channels' : 640,
+        'mix_depth' : 4,
+        'mlp_ratio' : 1,
+        'out_rows' : 4,
+    } # the output dim will be (out_rows * out_channels)
+elif 'gem' in args.aggregator.lower():
+    agg_config={
+        'p': 3,
+    }
+
+model = GeoClassNet(args.backbone, backbone_info=backbone_info,aggregator=args.aggregator,agg_config=agg_config).to(args.device)
+
+
 
 commons.make_deterministic(args.seed)
 commons.setup_logging(args.save_dir, console="info")
@@ -31,7 +77,6 @@ test_dataset = TestDataset(args.test_set_path, M=args.M, N=args.N, image_size=ar
 test_dl = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=1, shuffle=False, num_workers=2, pin_memory=True)
 
 #### Model
-model = models_origin.GeoClassNet(args.backbone).to(args.device)
 
 # Each group has its own classifier, which depends on the number of classes in the group
 if args.classifier_type == "AAMC":
@@ -49,5 +94,5 @@ else:
     logging.info("WARNING: You didn't provide a path to resume the model (--resume_model parameter). " +
                  "Evaluation will be computed using randomly initialized weights.")
 
-lr_str = test.inference(args, model, classifiers, test_dl, groups, len(test_dataset))
+lr_str = he_test.inference(args, model, classifiers, test_dl, groups, len(test_dataset))
 logging.info(f"LR: {lr_str}")

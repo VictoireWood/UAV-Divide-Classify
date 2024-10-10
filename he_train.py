@@ -15,6 +15,7 @@ import parser
 import commons
 from he_datasets import TrainDataset, TestDataset  # ANCHOR
 # from datasets_M import TrainDataset, TestDataset    # EDIT
+import numpy as np
 
 # 有高度估计输入的定高模型(150)
 
@@ -57,6 +58,15 @@ train_augmentation = T.Compose([
         T.ToTensor(),
         T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
+
+# train_augmentation = T.Compose([
+#         T.Resize(args.train_resize, antialias=True),
+#         T.RandomResizedCrop([args.train_resize[0], args.train_resize[1]], scale=[1-0.34, 1], antialias=True),
+#         # T.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.2),  
+#         # T.RandomAffine(degrees=20, translate=(0.1, 0.1), shear=15),
+#         T.ToTensor(),
+#         T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+#     ])
 
 groups = [TrainDataset(args.train_set_path, dataset_name=args.dataset_name, group_num=n, 
                        M=args.M, N=args.N,
@@ -135,6 +145,8 @@ elif 'gem' in args.aggregator.lower():
     agg_config={
         'p': 3,
     }
+else:
+    agg_config = {}
 
 # agg_config={
 #     # 'in_channels' : 1280,
@@ -159,6 +171,11 @@ model = model.to(args.device)
 if 'dinov2' in args.backbone.lower() and backbone_info['scheme']=='adapter':
     model = helper.freeze_dinov2_train_adapter(model)
     model = helper.init_adapter(model)
+
+# 看model的可训练参数多少
+model_parameters = filter(lambda p: p.requires_grad, model.parameters())
+params = sum([np.prod(p.size()) for p in model_parameters])
+logging.info(f'Trainable parameters: {params/1e6:.4}M')
 
 # model = torch.nn.DataParallel(model)  # REVIEW 这里是CricaVPR的并行计算，这里去掉
 
