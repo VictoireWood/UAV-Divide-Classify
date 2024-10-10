@@ -61,7 +61,7 @@ logging.info(f"The outputs are being saved in {args.save_dir}")
 
 train_augmentation = T.Compose([
         T.Resize(args.train_resize, antialias=True),
-        T.RandomResizedCrop((args.train_resize[0], args.train_resize[1]), scale=(1-0.34, 1), ratio=(0.65, 0.85), antialias=True),
+        T.RandomResizedCrop((args.train_resize[0], args.train_resize[1]), scale=(1-0.34, 1), ratio=(1.25, 1.4), antialias=True),
         # T.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.2),  
         # T.RandomAffine(degrees=20, translate=(0.1, 0.1), shear=15),
         T.ToTensor(),
