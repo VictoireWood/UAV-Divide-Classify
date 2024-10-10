@@ -50,23 +50,23 @@ logging.info(f"The outputs are being saved in {args.save_dir}")
 #         T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
 #     ])
 # EDIT 邵星雨
-train_augmentation = T.Compose([
-        T.Resize(args.train_resize, antialias=True),
-        T.RandomResizedCrop([args.train_resize[0], args.train_resize[1]], scale=[1-0.34, 1], antialias=True),
-        T.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.2),  
-        T.RandomAffine(degrees=20, translate=(0.1, 0.1), shear=15),
-        T.ToTensor(),
-        T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    ])
-
 # train_augmentation = T.Compose([
 #         T.Resize(args.train_resize, antialias=True),
-#         T.RandomResizedCrop([args.train_resize[0], args.train_resize[1]], scale=[1-0.34, 1], antialias=True),
-#         # T.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.2),  
-#         # T.RandomAffine(degrees=20, translate=(0.1, 0.1), shear=15),
+#         T.RandomResizedCrop([args.train_resize[0], args.train_resize[1]], scale=[1-0.34, 1+0.34], antialias=True),
+#         T.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.2),  
+#         T.RandomAffine(degrees=20, translate=(0.1, 0.1), shear=15),
 #         T.ToTensor(),
 #         T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
 #     ])
+
+train_augmentation = T.Compose([
+        T.Resize(args.train_resize, antialias=True),
+        T.RandomResizedCrop((args.train_resize[0], args.train_resize[1]), scale=(1-0.34, 1), ratio=(0.65, 0.85), antialias=True),
+        # T.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.2),  
+        # T.RandomAffine(degrees=20, translate=(0.1, 0.1), shear=15),
+        T.ToTensor(),
+        T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
 
 groups = [TrainDataset(args.train_set_path, dataset_name=args.dataset_name, group_num=n, 
                        M=args.M, N=args.N,

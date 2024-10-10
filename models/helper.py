@@ -211,6 +211,8 @@ class GeoClassNet(nn.Module):
         if args.model_classifier_layer:
             x = self.classifier(x)
         # x = self.classifier(x)    # REVIEW 这是原始代码的一个全链接层，有几次测试时我把它去掉了，感觉加上可能效果更好
+        else:
+            x = F.normalize(x, p=2, dim=1)
         return x
 
 def get_output_dim(model, input_size=(32, 3, 210, 280)):

@@ -14,4 +14,5 @@ class GeMPool(nn.Module):
     def forward(self, x):
         x = F.avg_pool2d(x.clamp(min=self.eps).pow(self.p), (x.size(-2), x.size(-1))).pow(1./self.p)
         x = x.flatten(1)
-        return F.normalize(x, p=2, dim=1)
+        return x
+        # return F.normalize(x, p=2, dim=1) # NOTE 后面的classifier全连接层后再接一个L2Norm，前面不接了
