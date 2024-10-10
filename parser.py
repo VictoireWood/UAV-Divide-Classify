@@ -100,7 +100,9 @@ def parse_arguments():
     #     args.train_resize = (210, 280)
     #     args.test_resize = 210
 
-    args.save_dir = os.path.join("logs", args.exp_name, datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+
+    args.save_dir = os.path.join(current_dir, "logs", args.exp_name, datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
 
     return args
 
