@@ -23,6 +23,7 @@ def bool_based_on_probability(true_probability=0.5):
 
 # flight_heights = [200, 300, 400]
 flight_heights = [150]
+flight_heights = [125]
 # flight_heights = [160, 170, 180, 190, 200]
 # flight_heights = [175, 200]
 flight_heights = list(set(flight_heights))  # 去除重复元素
@@ -256,7 +257,8 @@ def generate_map_tiles(raw_map_path:str, stride_ratio_str:str, patches_save_dir:
                         # print('%s.png' % ('@' + LT_cur_lon + '@' + LT_cur_lat + '@' + RB_cur_lon + '@' + RB_cur_lat + '@'))
                         
 
-                        save_file_path = f'{patches_save_dir}{slash}' + filename
+                        # save_file_path = f'{patches_save_dir}{slash}' + filename
+                        save_file_path = os.path.join(patches_save_dir, filename)
 
                         # if platform.system() == "Windows":
                         #     save_file_path = f'{patches_save_dir}\\' + filename
@@ -285,9 +287,14 @@ if __name__ == '__main__':
     # stage = "val"
     # stage = "test"
 
+    dataset_name = 'ct01'
+    # dataset_name = 'ct02'
+
 
     # basedir = r'E:\QDRaw'+'\\'
     basedir = r'/root/shared-storage/shaoxingyu/workspace_backup/QDRaw/'
+
+    basedir = r'/root/workspace/crikff47v38s73fnfgdg/maps/Cities/ct01/'
     # map_dirs = {  
     #     "2013": r"E:\QingdaoRawMaps\201310\@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.tif",  
     #     "2017": r"E:\QingdaoRawMaps\201710\@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.tif",
@@ -295,21 +302,31 @@ if __name__ == '__main__':
     #     "2020": r"E:\QingdaoRawMaps\202002\@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.tif",  
     #     "2022": r"E:\QingdaoRawMaps\202202\@map@120.42118549346924@36.60643328438966@120.4841423034668@36.573836401969416@.tif"  
     # }
-    map_dirs = {
-        "2013": rf"{basedir}201310{slash}@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg",  
-        "2017": rf"{basedir}201710{slash}@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg",
-        "2019": rf"{basedir}201911{slash}@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg",
-        "2020": rf"{basedir}202002{slash}@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg",  
-        "2022": rf"{basedir}202202{slash}@map@120.42118549346924@36.60643328438966@120.4841423034668@36.573836401969416@.jpg"  
-    }
+    # map_dirs = {
+    #     "2013": rf"{basedir}201310{slash}@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg",  
+    #     "2017": rf"{basedir}201710{slash}@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg",
+    #     "2019": rf"{basedir}201911{slash}@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg",
+    #     "2020": rf"{basedir}202002{slash}@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg",  
+    #     "2022": rf"{basedir}202202{slash}@map@120.42118549346924@36.60643328438966@120.4841423034668@36.573836401969416@.jpg"  
+    # }
+
+    if dataset_name == 'ct01':
+        map_dirs = {
+            # "2013": os.path.join(basedir, "2013", "@116.35551452636719@40.09815882135811@116.44632339477539@40.15118932709900@.jpg"),
+            # "2017": os.path.join(basedir, "2017", "@116.35551452636719@40.09815882135811@116.44632339477539@40.15118932709900@.jpg"),
+            # "2019": os.path.join(basedir, "2019", "@116.35551452636719@40.09815882135811@116.44632339477539@40.15118932709900@.jpg"),
+            # "2020": os.path.join(basedir, "2020", "@116.35551452636719@40.09815882135811@116.44632339477539@40.15118932709900@.jpg"), 
+            "2022": os.path.join(basedir, "2022", "@map@116.35551452636719@40.09815882135811@116.44632339477539@40.15118932709900@.jpg"),
+        }
+    
     # train
     if stage == "train":
         stride_ratios = {  
-            "2013": 3,  
-            "2017": 4,  
-            "2019": 5,  
-            "2020": 3,  
-            "2022": 4,  
+            # "2013": 3,  
+            # "2017": 4,  
+            # "2019": 5,  
+            # "2020": 3,  
+            "2022": 5,  
         }
     # val
     elif stage == "val":
@@ -333,7 +350,8 @@ if __name__ == '__main__':
     # patches_save_root_dir = f"D:\QingdaoMapTiles" + '\\'  
     # patches_save_root_dir = f'../dcqddb_{stage}/' # ORIGION
     # patches_save_root_dir = f'E:\\GeoVINS\\dcqddb_{stage}/'
-    patches_save_root_dir = f'/root/shared-storage/shaoxingyu/workspace_backup/dcqd150_{stage}/'
+    # patches_save_root_dir = f'/root/shared-storage/shaoxingyu/workspace_backup/dcqd150_{stage}/'
+    patches_save_root_dir = f'/root/workspace/crikff47v38s73fnfgdg/maps/{dataset_name}_125/'
 
     alpha_list = range(0, 360, 30)
 
