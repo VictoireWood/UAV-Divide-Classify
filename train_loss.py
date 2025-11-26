@@ -21,6 +21,8 @@ import numpy as np
 
 from classifiers import AAMC, LMCC, LinearLayer, ACLC, QAMC
 
+
+
 args = parser.parse_arguments()
 assert args.train_set_path is not None, 'you must specify the train set path'
 # assert args.val_set_path is not None, 'you must specify the val set path'   # NOTE: 其实val这个文件夹根本没有用到
@@ -62,7 +64,7 @@ logging.info(f"The outputs are being saved in {args.save_dir}")
 train_augmentation = T.Compose([
         T.Resize(args.train_resize, antialias=True),
         T.RandomResizedCrop((args.train_resize[0], args.train_resize[1]), scale=(1-0.34, 1), ratio=(1.25, 1.4), antialias=True),
-        T.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.2),  
+        # T.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.2),  
         # T.RandomAffine(degrees=20, translate=(0.1, 0.1), shear=15),
         T.ToTensor(),
         T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
@@ -111,28 +113,19 @@ if 'dinov2' in args.backbone.lower():
             # 'input_size': 210,
         }
     elif args.dinov2_scheme == 'finetune':
-        if 'salad' in args.aggregator.lower():
-            backbone_info={
-                'scheme': 'finetune',
-                'input_size': args.train_resize,
-                'num_trainable_blocks': 4,
-                'return_token': True,
-                'norm_layer': True,
-            }
-        else:
-            backbone_info = {
-                'scheme': 'finetune',
-                # 'foundation_model_path': '/root/.cache/torch/hub/checkpoints/dinov2_vitb14_pretrain.pth',
-                # 'input_size': (210, 280),
-                'input_size': args.train_resize,
-                'num_trainable_blocks': args.train_blocks_num,
-                'return_token': args.return_token,
-            }
+        backbone_info = {
+            'scheme': 'finetune',
+            # 'foundation_model_path': '/root/.cache/torch/hub/checkpoints/dinov2_vitb14_pretrain.pth',
+            # 'input_size': (210, 280),
+            'input_size': args.train_resize,
+            'num_trainable_blocks': args.train_blocks_num,
+            'return_token': args.return_token,
+        }
 elif 'efficientnet_v2' in args.backbone.lower():
     backbone_info = {
         # 'input_size': (210, 280),
         'input_size': args.train_resize,
-        'layers_to_freeze': 5,
+        'layers_to_freeze': 8
     }
 elif 'efficientnet' in args.backbone.lower():
     backbone_info = {
@@ -147,31 +140,9 @@ elif 'radio' in args.backbone.lower():
         'return_token': args.return_token,
         'pre_norm': args.pre_norm,
     }
-elif 'resnet' in args.backbone.lower() and 'mixvpr' in args.aggregator.lower():
-    backbone_info = {
-        'input_size': args.train_resize,
-        'layers_to_freeze': 2,
-        'layers_to_crop': [4],
-    }
-elif 'resnet' in args.backbone.lower():
-    backbone_info = {
-        'input_size': args.train_resize,
-        'layers_to_freeze': 2,
-        'layers_to_crop': [],
-    }
 
 if args.aggregator == None:
     agg_config = {}
-elif 'resnet50' in args.backbone.lower() and 'mixvpr' in args.aggregator.lower():
-    agg_config = {
-        'in_channels' : 1024,
-        'in_h' : 20,
-        'in_w' : 20,
-        'out_channels' : 1024,
-        'mix_depth' : 4,
-        'mlp_ratio' : 1,
-        'out_rows' : 4,
-    }
 elif 'mixvpr' in args.aggregator.lower():
     agg_config = {
         # 'in_channels' : 1280,
@@ -185,18 +156,6 @@ elif 'mixvpr' in args.aggregator.lower():
 elif 'gem' in args.aggregator.lower():
     agg_config={
         'p': 3,
-    }
-elif 'cosplace' in args.aggregator.lower():
-    agg_config={
-        # 'in_dim': 
-        'out_dim': 2048,
-    }
-elif 'salad' in args.aggregator.lower():
-    agg_config={
-        'num_channels': 768,
-        'num_clusters': 64,
-        'cluster_dim': 128,
-        'token_dim': 256,
     }
 else:
     agg_config = {}

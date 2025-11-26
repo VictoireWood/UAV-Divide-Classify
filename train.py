@@ -190,6 +190,7 @@ for epoch_num in range(start_epoch_num, args.epochs_num):
         "optimizer_state_dict": optimizer.state_dict(),
         "classifiers_state_dict": [c.state_dict() for c in classifiers],
         "optimizers_state_dict": [c.state_dict() for c in classifiers_optimizers],
+        "scheduler_state_dict": scheduler.state_dict(),
         "args": args,
         "best_train_loss": best_loss
     }, is_best, args.save_dir)

@@ -79,9 +79,10 @@ class MulConvAdapter(nn.Module):
         W = H = int(math.sqrt(P-1)) # ANCHOR 原始
 
         # NOTE 这里设定的是处理正方形图，但是我处理的是高：宽=3:4的图，所以我这里应该还按照这个比例来处理
-        token_num_without_cls = P-1 # EDIT
-        W = int(math.sqrt(token_num_without_cls / 3 * 4))
-        H = int(token_num_without_cls/W)
+        # token_num_without_cls = P-1 # EDIT
+        # W = int(math.sqrt(token_num_without_cls / 3 * 4))
+        # H = int(token_num_without_cls/W)
+
 
         x0 = F.relu(x0, inplace=True)
         

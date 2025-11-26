@@ -10,11 +10,15 @@ from PIL import Image
 from PIL import ImageFile
 import torchvision.transforms as T
 from collections import defaultdict
+import re
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 # EDIT
-from generate_database import flight_heights
+# from generate_database import flight_heights
+
+import parser
+args = parser.parse_arguments()
 
 def open_image(path):
     return Image.open(path).convert("RGB")
@@ -167,7 +171,10 @@ class TrainDataset(torch.utils.data.Dataset):
         classes and it is too small (like in pitts30k), the dataloader within
         InfiniteDataLoader is often recreated (and slows down training).
         """
-        return 1000000
+        # return 1000000
+        # return 372390
+        # return 1459192
+        return 1500000     # NOTE Found 1459192 images，之前的数额比实际的小，有可能是因为这个才卡住吗？
 
     @staticmethod
     # def get__class_id__group_id(utm_east, utm_north, M, N):   # ORIGION
@@ -290,3 +297,232 @@ def initialize(dataset_folder, dataset_name, M, N, min_images_per_class):
 
     return classes_per_group, images_per_class_per_group
 
+class RetrievalDataset(torch.utils.data.Dataset):
+    def __init__(self, image_paths):
+        self.image_paths = image_paths
+        self.utms = get_utmeast_utmnorth(image_paths)
+        self.transforms = T.Compose([
+            T.Resize(args.test_resize, antialias=True),
+            T.ToTensor(),
+            T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
+
+    def __len__(self):
+        return len(self.image_paths)
+
+    def __getitem__(self, idx):
+        image = open_image(self.image_paths[idx])
+        image = self.transforms(image)
+        utm = self.utms[idx]
+        return image, utm
+
+
+
+class TestDataset(torch.utils.data.Dataset):
+    def __init__(self, test_folder, M=10, N=5, image_size=256):
+        super().__init__()
+        logging.debug(f"Searching test images in {test_folder}")
+
+        # images_paths = sorted(glob(f"{test_folder}/**/*.jpg", recursive=True))    # ANCHOR: 原始
+        images_paths = sorted(glob(f"{test_folder}/**/*.png", recursive=True)) # REVIEW: 邵星雨改
+
+        logging.debug(f"Found {len(images_paths)} images")
+        
+        '''# EDIT 这里写成函数方便复用
+        images_metadatas = [p.split("@") for p in images_paths]
+        # field 1 is UTM east, field 2 is UTM north
+        # self.utmeast_utmnorth = np.array([(m[1], m[2]) for m in images_metadatas]).astype(np.float64)   # ANCHOR: 原始
+        # self.utmeast_utmnorth = np.array([(m[-3], m[-2]) for m in images_metadatas]).astype(np.float64)   # REVIEW: 邵星雨改，我设置的图片格式是@角度（默认0）@UTM-east@UTM-north@.png
+        self.h_utmeast_utmnorth = np.array([(m[-4], m[-3], m[-2]) for m in images_metadatas]).astype(np.float64)   # EDIT: 邵星雨改，我设置的图片格式是@角度（默认0）@高度@UTM-east@UTM-north@.png'''
+        # self.h_utmeast_utmnorth = get_h_utmeast_utmnorth(images_paths)
+        self.utmeast_utmnorth = get_utmeast_utmnorth(images_paths)
+
+        # class_id_group_id = [TrainDataset.get__class_id__group_id(*m, M, N) for m in self.utmeast_utmnorth] # ORIGION
+        class_id_group_id = [TrainDataset.get__class_id__group_id(*m, M, N) for m in self.utmeast_utmnorth] # EDIT
+
+        self.images_paths = images_paths
+        self.class_id = [(id[0][0]+ M // 2, id[0][1]+ M // 2) for id in class_id_group_id]  # ORIGION
+        # self.class_id = [(id[0][0], id[0][1]+ M // 2, id[0][2]+ M // 2) for id in class_id_group_id]  # EDIT  class_id是(h, utm_e, utm_n)，应该取第二个第三个求坐标
+        self.group_id = [id[1] for id in class_id_group_id]
+
+        self.normalize = T.Compose([
+            T.Resize(image_size),
+            T.ToTensor(),
+            T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
+
+    def __getitem__(self, index):
+        image_path = self.images_paths[index]
+        # class_id = self.class_id[index]
+
+        pil_image = open_image(image_path)
+        # pil_image = T.functional.resize(pil_image, self.shapes[index])
+        image = self.normalize(pil_image)
+        if isinstance(image, tuple):
+            image = torch.stack(image, dim=0)
+        return image, tuple(self.utmeast_utmnorth[index]) # ORIGION 这里忘改成h_utmeast_utmnorth了
+        # return image, tuple(self.h_utmeast_utmnorth[index]) # EDIT 返回类别
+
+
+    def __len__(self):
+        return len(self.images_paths)
+
+    def get_classes_num(self):
+        return len(self.dict__cell_id__class_num)
+
+def utm_retrieval(path):
+    m = path.split("@")
+    utmeast_str = m[-3]
+    utmnorth_str = m[-2]
+    utmeast_float64 = np.float64(utmeast_str)
+    utmnorth_float64 = np.float64(utmnorth_str)
+    utmeast_utmnorth_m = (utmeast_float64, utmnorth_float64)
+    return utmeast_utmnorth_m
+
+
+def initialize_retrieval(dataset_folder, dataset_name, M, N, min_images_per_class):
+    def select_angel(images_paths):
+        selected_paths = []
+        images_metadatas = [p.split("@") for p in images_paths]
+        for m, p in zip(images_metadatas, images_paths):
+            angel = m[1]    # "@0@125@342226.3713709174@3440701.6162239234@.png"
+            try:
+                int(angel)
+                if int(angel) == 0:
+                    selected_paths.append(p)
+            except:
+                selected_paths.append(p)
+        return selected_paths
+
+    paths_file = f"cache/paths_{dataset_name}_retrieval.torch"
+    # Search paths of dataset only the first time, and save them in a cached file
+    if not os.path.exists(paths_file):
+        logging.info(f"Searching training images in {dataset_folder}")
+        # images_paths = sorted(glob(f"{dataset_folder}/**/*.jpg", recursive=True))   # ANCHOR
+        images_paths = sorted(glob(f"{dataset_folder}/**/*.png", recursive=True))   # REVIEW
+        images_paths = select_angel(images_paths)   # NOTE 选择角度为0的，dataset_folder要定位到年份文件夹
+        # Remove folder_path from images_path, so that the same cache file can be used on any machine
+        # dataset_folder_base = os.path.dirname(dataset_folder)
+        images_paths = [p.replace(dataset_folder, "") for p in images_paths]
+        # images_paths = [p.replace(dataset_folder_base, "") for p in images_paths]
+        os.makedirs("cache", exist_ok=True)
+        torch.save(images_paths, paths_file)
+    else:
+        images_paths = torch.load(paths_file)
+
+    logging.info(f"Found {len(images_paths)} images")
+
+    # h_utmeast_utmnorth = get_h_utmeast_utmnorth(images_paths)
+    utmeast_utmnorth = get_utmeast_utmnorth(images_paths)
+
+    # 判断h在哪个高度区间，根据区间进行M的设置
+    
+
+    logging.info("For each image, get its UTM east, UTM north from its path")
+    logging.info("For each image, get class and group to which it belongs")
+    class_id__group_id = [TrainDataset.get__class_id__group_id(*m, M, N) for m in utmeast_utmnorth] # ORIGION
+    # class_id__group_id = [TrainDataset.get__class_id__group_id(*m, M, N, train_dataset=True) for m in h_utmeast_utmnorth]   # EDIT
+
+    logging.info("Group together images belonging to the same class")
+    images_per_class = defaultdict(list)
+    # images_per_class_per_group = defaultdict(dict)
+    for image_path, (class_id, _) in zip(images_paths, class_id__group_id):
+        images_per_class[class_id].append(image_path)
+
+    images_and_utms_per_class = defaultdict(list)
+    for image_path, utm, (class_id, _) in zip(images_paths, utmeast_utmnorth, class_id__group_id):
+        images_and_utms_per_class[class_id].append((images_paths, utm))
+        # NOTE 相当于每个Class id后面是一个list, list里面是tuple: (images_paths, utm)
+
+    # Images_per_class is a dict where the key is class_id, and the value
+    # is a list with the paths of images within that class.
+    # images_per_class = {k: v for k, v in images_per_class.items() if len(v) >= min_images_per_class}
+    images_and_utms_per_class = {k: v for k, v in images_and_utms_per_class.items() if len(v) >= min_images_per_class}
+    classes_ids = [k for k, v in images_and_utms_per_class.items()]
+
+    logging.info("Group together classes belonging to the same group")
+    # Classes_per_group is a dict where the key is group_id, and the value
+    # is a list with the class_ids belonging to that group.
+    # classes_per_group = defaultdict(set)
+    # for class_id, group_id in class_id__group_id:
+    #     if class_id not in images_per_class:
+    #         continue  # Skip classes with too few images
+    #     classes_per_group[group_id].add(class_id)
+
+    # for group_id, group_classes in classes_per_group.items():
+    #     for class_id in group_classes:
+    #         images_per_class_per_group[group_id][class_id] = images_per_class[class_id]
+    # # Convert classes_per_group to a list of lists.
+    # # Each sublist represents the classes within a group.
+    # classes_per_group = [list(c) for c in classes_per_group.values()]
+    # images_per_class_per_group = [c for c in images_per_class_per_group.values()]
+
+    return images_paths, utmeast_utmnorth, images_per_class, classes_ids
+
+
+
+class PrepareDescriptor(torch.utils.data.Dataset):
+    def __init__(self, train_path, dataset_name, M=10, N=5, min_images_per_class=10, transform=None):
+        """
+        Parameters
+        ----------
+        M : int, the length of the side of each cell in meters.
+        N : int, distance (M-wise) between two classes of the same group.
+        classes_ids : list of IDs of each class within this group. Each ID is a tuple
+                with the center of the cell in UTM coords, e.g: (549900, 4178820).
+        images_per_class : dict where the key is a class ID, and the value is a list
+                containing the paths of the images withing the class.
+        transform : a transform for data augmentation
+
+        这里的train_path要写到年份文件夹
+        """
+        super().__init__()
+
+        
+
+        cache_filename = f"cache/{dataset_name}_M{M}_N{N}_mipc{min_images_per_class}_retrieval.torch" # ORIGION
+
+        if not os.path.exists(cache_filename):
+            images_paths, utmeast_utmnorth, images_per_class, classes_ids = initialize_retrieval(train_path, dataset_name, M, N, min_images_per_class)
+            torch.save((images_paths, utmeast_utmnorth, images_per_class, classes_ids), cache_filename)
+        else:
+            images_paths, utmeast_utmnorth, images_per_class, classes_ids = torch.load(cache_filename)
+        # classes_ids = classes_per_group[group_num]
+        # images_per_class = images_per_class_per_group[group_num]
+
+        self.train_path = train_path
+        # self.train_path = os.path.dirname(train_path)
+        self.M = M
+        self.N = N
+        self.transform = transform
+        self.classes_ids = classes_ids
+        self.images_paths = images_paths
+        self.utmeast_utmnorth = utmeast_utmnorth
+        self.images_per_class = images_per_class
+        
+        # self.class_centers = [(cl_id[0] + M // 2, cl_id[1] + M // 2) for cl_id in self.classes_ids] # ORIGION 这里id只有俩，得加上h
+    
+    def __getitem__(self, index):
+        # The index is ignored, and each class is sampled uniformly
+        image_path = self.images_paths[index]
+        abs_image_path = self.train_path + image_path
+        pil_image = open_image(abs_image_path)
+        # Pick a random image among the ones in this class.
+        tensor_image = self.transform(pil_image)
+
+        return tensor_image, index
+
+    def get_images_num(self):
+        """Return the number of images within this group."""
+        return sum([len(self.images_per_class[c]) for c in self.classes_ids])
+
+    def get_classes_num(self):
+        """Return the number of classes within this group."""
+        return len(self.classes_ids)
+
+    def __len__(self):
+        """Return a large number. This is because if you return the number of
+        classes and it is too small (like in pitts30k), the dataloader within
+        InfiniteDataLoader is often recreated (and slows down training).
+        """
+        return len(self.images_paths)

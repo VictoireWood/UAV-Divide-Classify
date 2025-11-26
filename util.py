@@ -4,6 +4,7 @@ import shutil
 import logging
 from collections import OrderedDict
 
+import pandas as pd
 
 def move_to_device(optimizer, device):
     for state in optimizer.state.values():
@@ -44,7 +45,7 @@ def resume_model(args, model, classifiers):
     return model, classifiers
 
 
-def resume_train_with_groups(args, output_folder, model, model_optimizer, classifiers, classifiers_optimizers):
+def resume_train_with_groups(args, output_folder, model, model_optimizer, classifiers, classifiers_optimizers, scheduler):
     """Load model, optimizer, and other training parameters"""
     logging.info(f"Loading checkpoint: {args.resume_train}")
     checkpoint = torch.load(args.resume_train)
@@ -57,6 +58,8 @@ def resume_train_with_groups(args, output_folder, model, model_optimizer, classi
 
     model = model.to(args.device)
     model_optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+
+    scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
 
     assert len(classifiers) == len(classifiers_optimizers) == len(
         checkpoint["classifiers_state_dict"]) == len(checkpoint["optimizers_state_dict"]), \
@@ -75,4 +78,10 @@ def resume_train_with_groups(args, output_folder, model, model_optimizer, classi
     # Copy best model to current output_folder
     shutil.copy(args.resume_train.replace("last_checkpoint.pth", "best_model.pth"), output_folder)
 
-    return model, model_optimizer, classifiers, classifiers_optimizers, best_train_loss, start_epoch_num
+    return model, model_optimizer, classifiers, classifiers_optimizers, best_train_loss, start_epoch_num, scheduler
+
+
+def get_csv_info(csv_path: str):
+    df = pd.read_csv(csv_path)
+    result = df.to_dict(orient='records')
+    return result

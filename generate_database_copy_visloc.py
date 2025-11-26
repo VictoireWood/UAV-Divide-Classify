@@ -16,6 +16,7 @@ import sys
 import platform
 import math
 import utm
+import pandas as pd
 
 
 def bool_based_on_probability(true_probability=0.5):
@@ -34,7 +35,8 @@ flight_heights.sort()   # 从小到大排序
 # TODO: 
 # 分辨率
 resolution_w = 2048
-resolution_h = 1536
+# resolution_h = 1536
+resolution_h = 1366
 # 焦距
 focal_length = 1200  # TODO: the intrinsics of the camera
 
@@ -135,11 +137,12 @@ def crop_rot_img_wo_border(image, crop_width, crop_height, crop_center_x, crop_c
     result = rotate_image(cropped_image, angle, crop_width, crop_height)
     return result
 
-def generate_map_tiles(raw_map_path:str, stride_ratio_str:str, patches_save_dir:str, rotation_angles=[0]):
+def generate_map_tiles(raw_map_path:str, df:pd.DataFrame, stride_ratio_str:str, patches_save_dir:str, rotation_angles=[0]):
 
     # 飞行高度
     # flight_height = 150
-    flight_height = int(patches_save_dir.split('_')[-1])
+    # flight_height = int(patches_save_dir.split('_')[-1])
+    flight_height = int(125)
 
     #TODO: 
     target_w = 480                  # TODO: set the width corresponding to the shape of your query image
@@ -159,21 +162,28 @@ def generate_map_tiles(raw_map_path:str, stride_ratio_str:str, patches_save_dir:
     target_h = round(target_w / w_h_factor)         # NOTE 最后要resize的高度(h360,w480)
 
 
-    numerator = int(stride_ratio_str.split('/')[0])
-    denominator = int(stride_ratio_str.split('/')[1])
-    stride_ratio = float(Fraction(numerator, denominator))
+    # numerator = int(stride_ratio_str.split('/')[0])
+    # denominator = int(stride_ratio_str.split('/')[1])
+    # stride_ratio = float(Fraction(numerator, denominator))
+    stride_ratio = 1/5
 
     map_data = cv2.imread(raw_map_path)
 
     map_w = map_data.shape[1]   # 大地图像素宽度
     map_h = map_data.shape[0]   # 大地图像素高度
 
-    gnss_data = raw_map_path.split(slash)[-1]
+    LT_lon = float(df['LT_lon_map'].iloc[0])
+    LT_lat = float(df['LT_lat_map'].iloc[0])
+    RB_lon = float(df['RB_lon_map'].iloc[0]) # right bottom 右下
+    RB_lat = float(df['RB_lat_map'].iloc[0])
 
-    LT_lon = float(gnss_data.split('@')[2]) # left top 左上
-    LT_lat = float(gnss_data.split('@')[3])
-    RB_lon = float(gnss_data.split('@')[4]) # right bottom 右下
-    RB_lat = float(gnss_data.split('@')[5])
+
+    # gnss_data = raw_map_path.split(slash)[-1]
+
+    # LT_lon = float(gnss_data.split('@')[2]) # left top 左上
+    # LT_lat = float(gnss_data.split('@')[3])
+    # RB_lon = float(gnss_data.split('@')[4]) # right bottom 右下
+    # RB_lat = float(gnss_data.split('@')[5])
 
     lon_res = (RB_lon - LT_lon) / map_w     # 大地图的纬线方向每像素代表的经度跨度
     lat_res = (RB_lat - LT_lat) / map_h     # 大地图的经线方向每像素代表的纬度跨度
@@ -201,7 +211,7 @@ def generate_map_tiles(raw_map_path:str, stride_ratio_str:str, patches_save_dir:
     iter_h = int((map_h - img_h) / stride_y) + 1
     iter_total = iter_w * iter_h * len(rotation_angles)
 
-    with trange(iter_total, desc=gnss_data) as tbar:
+    with trange(iter_total, desc=os.path.basename(raw_map_path)) as tbar:
         i = 0
         loc_x = 0
         # LINK: https://blog.csdn.net/winter2121/article/details/111356587
@@ -293,13 +303,11 @@ if __name__ == '__main__':
 
     # dataset_name = 'ct01'
     dataset_name = 'ct02'
+    dataset_name = 'qd'
     dataset_name = 'VL08'
     dataset_name = 'VL09'
-    dataset_name = 'qd'
 
     basedir = r'/root/workspace/ctf53sc7v38s73e0mksg/maps/QDRaw'
-
-    basedir = r'/root/workspace/ctf53sc7v38s73e0mksg/maps/new_qd_years'
 
 
     # # basedir = r'E:\QDRaw'+'\\'
@@ -377,63 +385,40 @@ if __name__ == '__main__':
             "202306": 5,
         }
     
-    # if dataset_name == 'qd':
-    #     map_dirs = {
-    #     "2012": os.path.join(basedir, '201209', '@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg'),
-    #     "2013": os.path.join(basedir, '201310', '@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg'),  
-    #     "2017": os.path.join(basedir, '201710', '@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg'),
-    #     "2019": os.path.join(basedir, '201911', '@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg'),
-    #     "2020": os.path.join(basedir, '202002', '@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg'),
-    #     "2022": os.path.join(basedir, '202202', '@map@120.42118549346924@36.60643328438966@120.4841423034668@36.573836401969416@.jpg'),     
-    #     }
-
-    #     stride_ratios = {
-    #         "2012": 3,
-    #         "2013": 3,
-    #         "2017": 4,
-    #         "2019": 4,
-    #         "2020": 5,
-    #         "2022": 5,
-    #     }
-
     if dataset_name == 'qd':
         map_dirs = {
-            "201209": os.path.join(basedir, '@20120905@120.40747060326400@36.60902770136900@120.46053192297900@36.58563292439400@.tif'),
-            "201310": os.path.join(basedir, '@20131005@120.40747060326400@36.60902770136900@120.46053192297900@36.58563292439400@.tif'),  
-            "201703": os.path.join(basedir, '@20170319@120.40747060326400@36.60902770136900@120.46053192297900@36.58563292439400@.tif'),
-            "201710": os.path.join(basedir, '@20171027@120.40747060326400@36.60902770136900@120.46053192297900@36.58563292439400@.tif'),
-            "201911": os.path.join(basedir, '@20191107@120.40747060326400@36.60902770136900@120.46053192297900@36.58563292439400@.tif'),
-            "202111": os.path.join(basedir, '@20211104@120.40747060326400@36.60902770136900@120.46053192297900@36.58563292439400@.tif'),
-            "202202": os.path.join(basedir, '@20220203@120.40747060326400@36.60902770136900@120.46053192297900@36.58563292439400@.tif'),
-            "202501": os.path.join(basedir, '@20250117@120.40747060326400@36.60902770136900@120.46053192297900@36.58563292439400@.tif'),     
+        "2012": os.path.join(basedir, '201209', '@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg'),
+        "2013": os.path.join(basedir, '201310', '@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg'),  
+        "2017": os.path.join(basedir, '201710', '@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg'),
+        "2019": os.path.join(basedir, '201911', '@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg'),
+        "2020": os.path.join(basedir, '202002', '@map@120.421142578125@36.6064453125@120.48418521881104@36.573829650878906@.jpg'),
+        "2022": os.path.join(basedir, '202202', '@map@120.42118549346924@36.60643328438966@120.4841423034668@36.573836401969416@.jpg'),     
         }
 
         stride_ratios = {
-            "201209": 3,
-            "201310": 3,  
-            "201703": 4,
-            "201710": 4,
-            "201911": 4,
-            "202111": 5,
-            "202202": 5,
-            "202501": 5,
+            "2012": 3,
+            "2013": 3,
+            "2017": 4,
+            "2019": 4,
+            "2020": 5,
+            "2022": 5,
         }
 
-    # if dataset_name == 'VL08':
-    #     map_dirs = {
-    #         "VL08": '/root/workspace/ctf53sc7v38s73e0mksg/maps/UAV_VisLoc_dataset/08/satellite08.tif',
-    #     }
-    #     stride_ratios = {
-    #         "VL08": 5,
-    #     }
+    if dataset_name == 'VL08':
+        map_dirs = {
+            "VL08": '/root/workspace/ctf53sc7v38s73e0mksg/maps/UAV_VisLoc_dataset/08/satellite08.tif',
+        }
+        stride_ratios = {
+            "VL08": 5,
+        }
     
-    # if dataset_name == 'VL09':
-    #     map_dirs = {
-    #         'VL09': '/root/workspace/ctf53sc7v38s73e0mksg/maps/UAV_VisLoc_dataset/09/satellite09.tif'
-    #     }
-    #     stride_ratios = {
-    #         "VL09": 5,
-    #     }
+    if dataset_name == 'VL09':
+        map_dirs = {
+            'VL09': '/root/workspace/ctf53sc7v38s73e0mksg/maps/UAV_VisLoc_dataset/09/satellite09.tif'
+        }
+        stride_ratios = {
+            "VL09": 5,
+        }
 
 
     # # train
@@ -473,9 +458,10 @@ if __name__ == '__main__':
     patches_save_root_dir = f'/root/workspace/ctf53sc7v38s73e0mksg/maps/{dataset_name}_125_years/'
     # patches_save_root_dir = f'/root/workspace/ctf53sc7v38s73e0mksg/maps/{dataset_name}_100-150/'
     # patches_save_root_dir = f'/root/workspace/ctf53sc7v38s73e0mksg/maps/{dataset_name}_100-125-150/'
-    patches_save_root_dir = f'/root/workspace/ctvsuas7v38s73eo9qlg/maps/{dataset_name}_125'
     patches_save_root_dir = f'/root/workspace/ctvsuas7v38s73eo9qlg/maps/{dataset_name}_125_years/'
+    patches_save_root_dir = f'/root/workspace/ctvsuas7v38s73eo9qlg/maps/{dataset_name}_125'
     
+    csv_path = r'/root/workspace/ctf53sc7v38s73e0mksg/maps/UAV_VisLoc_dataset/satellite_coordinates_range.csv'
 
     alpha_list = range(0, 360, 30)
 
@@ -485,6 +471,11 @@ if __name__ == '__main__':
     for year, map_dir in map_dirs.items():
         for flight_height in flight_heights:
             save_dir_year = os.path.join(patches_save_root_dir, f'{year}_{flight_height}')  
+
+            dataframe = pd.read_csv(csv_path, encoding='utf-8')
+
+            map_name = os.path.basename(map_dir)
+            dataframe_current = dataframe[dataframe['mapname'] == map_name]
             
             if not os.path.exists(save_dir_year):  
                 os.makedirs(save_dir_year)  
@@ -500,7 +491,7 @@ if __name__ == '__main__':
             
             
 
-            generate_map_tiles(map_dir, stride_ratio_str, patches_save_dir, alpha_list)
+            generate_map_tiles(map_dir, dataframe_current, stride_ratio_str, patches_save_dir, alpha_list)
         
             current_iteration += 1  # Increment the progress counter  
 

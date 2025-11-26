@@ -50,7 +50,7 @@ def get_backbone(backbone_arch:str='dinov2_vitb14', pretrained:bool=True, backbo
         if backbone_info['scheme'] == 'adapter':
             backbone = get_dinov2_backbone(arch=backbone_arch, pretrained=pretrained, backbone_info=backbone_info)
         elif backbone_info['scheme'] == 'finetune':
-            backbone = backbones.DINOv2(model_name=backbone_arch, num_trainable_blocks=backbone_info['num_trainable_blocks'])
+            backbone = backbones.DINOv2(model_name=backbone_arch, num_trainable_blocks=backbone_info['num_trainable_blocks'], return_token=backbone_info['return_token'])
         return backbone
     elif 'efficientnet_v2' in backbone_arch.lower():
         layers_to_freeze = backbone_info['layers_to_freeze']
@@ -71,11 +71,15 @@ def get_backbone(backbone_arch:str='dinov2_vitb14', pretrained:bool=True, backbo
                 break
             for params in child.parameters():
                 params.requires_grad = False
+        backbone = model.features
+        return backbone
+    elif 'radio' in backbone_arch.lower():
+        backbone_arch = backbone_arch.lower()
+        backbone = backbones.RADIO(model_name=backbone_arch, num_trainable_blocks=backbone_info['num_trainable_blocks'], return_token=backbone_info['return_token'], pre_norm=backbone_info['pre_norm'])
+        return backbone
+    elif 'resnet' in backbone_arch.lower():
+        return backbones.ResNet(backbone_arch.lower(), layers_to_freeze=backbone_info['layers_to_freeze'], layers_to_crop=backbone_info['layers_to_crop'])
 
-        model = model.features
-        return model
-
-    
 
 
 def get_aggregator(agg_arch:str='MixVPR', agg_config:dict={}):
@@ -90,8 +94,10 @@ def get_aggregator(agg_arch:str='MixVPR', agg_config:dict={}):
     Returns:
         nn.Module: the aggregation layer
     """
-    
-    if 'cosplace' in agg_arch.lower():
+    if agg_arch == None:
+        return None
+    elif 'cosplace' in agg_arch.lower():
+        agg_config['in_dim'] = agg_config['in_channels']
         agg_config_tmp = {key:value for key,value in agg_config.items() if key == 'in_dim' or key == 'out_dim'}
         assert 'in_dim' in agg_config_tmp
         assert 'out_dim' in agg_config_tmp
@@ -126,10 +132,18 @@ def get_aggregator(agg_arch:str='MixVPR', agg_config:dict={}):
         )
         return agg
     elif 'cricavpr' in agg_arch.lower():
-        agg_config_tmp = {key:value for key,value in agg_config.items() if key == 'in_channels'}
-        assert 'in_channels' in agg_config_tmp
-        agg = aggregators.CricaVPR(**agg_config_tmp)
+        # agg_config_tmp = {key:value for key,value in agg_config.items() if key == 'in_channels'}
+        # assert 'in_channels' in agg_config_tmp
+        # agg = aggregators.CricaVPR(**agg_config_tmp)
+        # return agg
+        agg = aggregators.CricaNet()
         return agg
+    elif 'salad' in agg_arch.lower():
+        agg_config['num_channels'] = agg_config['in_channels']
+        agg_config_tmp = {key:value for key,value in agg_config.items() if key == 'num_channels' or key == 'token_dim' or key == 'cluster_dim' or key == 'num_clusters'}
+        agg = aggregators.SALAD(**agg_config_tmp)
+        return agg
+
 
 
 def freeze_dinov2_train_adapter(model:nn.Module):
@@ -174,20 +188,40 @@ class GeoClassNet(nn.Module):
         # self.pool = get_pooling()
             agg_config['in_h'] = input_size[0] // 14
             agg_config['in_w'] = input_size[1] // 14
+        elif 'radio' in backbone.lower():
+            agg_config['in_channels'] = 1280
+            agg_config['in_h'] = input_size[0] // 16
+            agg_config['in_w'] = input_size[1] // 16
         else:
             in_tmp = torch.ones(args.batch_size, 3, input_size[0], input_size[1])
             out_size = self.backbone(in_tmp).shape
             agg_config['in_channels'] = out_size[1]
             agg_config['in_h'] = out_size[2]
             agg_config['in_w'] = out_size[3]
-        if aggregator == 'MixVPR':
-            agg_config['out_channels'] = agg_config['in_channels'] // 2 # REVIEW
+
+        if aggregator is None:
+            self.aggregator = None
+            in_tmp = torch.ones(args.batch_size, 3, input_size[0], input_size[1]).to(args.device)
+            self.backbone = self.backbone.cuda()
+            out_channels = self.backbone(in_tmp)[1].shape[1]
+        elif aggregator == 'MixVPR':
+            # agg_config['out_channels'] = agg_config['in_channels'] // 2 # REVIEW
+
+            agg_config['out_channels'] = agg_config['in_channels']# REVIEW
             pass
             self.aggregator = get_aggregator(agg_arch=aggregator, agg_config=agg_config)
             out_channels = agg_config['out_channels'] * agg_config['out_rows']   # EDIT
+        elif aggregator == 'CricaVPR':
+            self.aggregator = get_aggregator(agg_arch=aggregator)
+            out_channels = 10752
+        elif aggregator == 'salad':
+            self.aggregator = get_aggregator(agg_arch=aggregator, agg_config=agg_config)
+            out_channels = 8448
         else:
             self.aggregator = get_aggregator(agg_arch=aggregator, agg_config=agg_config)
             out_channels = self.aggregator(torch.ones(1, agg_config['in_channels'], agg_config['in_h'], agg_config['in_w'])).shape[1]
+        
+        
         self.agg_config = agg_config
         self.classifier = nn.Sequential(
             nn.Linear(out_channels, out_channels),
@@ -196,23 +230,36 @@ class GeoClassNet(nn.Module):
         self.feature_dim = out_channels
         self.backbone_arch = backbone
         self.backbone_info = backbone_info
+        self.aggregator_arch = aggregator
 
     def forward(self, x):
         if 'dinov2' in self.backbone_arch:
-            if self.backbone_info['scheme'] == 'adapter':
-                x = self.backbone(x)['x_norm_patchtokens']
-                x = x.view(x.shape[0], self.agg_config['in_h'], self.agg_config['in_w'], x.shape[2]).permute(0, 3, 1, 2)
+            if self.aggregator_arch.lower() == 'salad':
+                x = self.backbone(x)
+            elif self.backbone_info['scheme'] == 'adapter':
+                x = self.backbone(x)
+                # x = self.backbone(x)['x_norm_patchtokens']
+                # x = x.view(x.shape[0], self.agg_config['in_h'], self.agg_config['in_w'], x.shape[2]).permute(0, 3, 1, 2)
             else:
                 x = self.backbone(x)
+                if type(x) is tuple:
+                    x = x[1]
+        elif 'radio' in self.backbone_arch:
+            x = self.backbone(x)
+            if self.backbone_info['return_token']:
+                x = x[1]
         else:
             x = self.backbone(x)
+            
         # x = self.pool(x)          # ANCHOR
-        x = self.aggregator(x)
+
+        if self.aggregator is not None:
+            x = self.aggregator(x)
         if args.model_classifier_layer:
             x = self.classifier(x)
         # x = self.classifier(x)    # REVIEW 这是原始代码的一个全链接层，有几次测试时我把它去掉了，感觉加上可能效果更好
         else:
-            x = F.normalize(x, p=2, dim=1)
+            x = F.normalize(x, p=2, dim=1)  # NOTE 相当于把classifier_layer中线性连接层中的最后一步L2Norm完成
         return x
 
 def get_output_dim(model, input_size=(32, 3, 210, 280)):

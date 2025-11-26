@@ -8,18 +8,17 @@ import torchvision.transforms as T
 from torch import optim
 from torch.utils.data import DataLoader
 
-import he_test
+import sues_inference
 import util
 from models import helper
 import parser
 import commons
-from he_datasets import TrainDataset, TestDataset  # ANCHOR
-# from datasets_M import TrainDataset, TestDataset    # EDIT
+from sues_dataset import TrainDataset, TestDrone, TestSatellite
 import numpy as np
 
 # 有高度估计输入的定高模型(150)
 
-from classifiers import AAMC, LMCC, LinearLayer, ACLC, QAMC
+from classifiers import AAMC, LMCC, LinearLayer, ACLC
 
 args = parser.parse_arguments()
 assert args.train_set_path is not None, 'you must specify the train set path'
@@ -62,17 +61,18 @@ logging.info(f"The outputs are being saved in {args.save_dir}")
 train_augmentation = T.Compose([
         T.Resize(args.train_resize, antialias=True),
         T.RandomResizedCrop((args.train_resize[0], args.train_resize[1]), scale=(1-0.34, 1), ratio=(1.25, 1.4), antialias=True),
-        T.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.2),  
+        # T.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.2),  
         # T.RandomAffine(degrees=20, translate=(0.1, 0.1), shear=15),
         T.ToTensor(),
         T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
 
 groups = [TrainDataset(args.train_set_path, dataset_name=args.dataset_name, group_num=n, 
-                       M=args.M, N=args.N,
+                       N=args.N,
                        min_images_per_class=args.min_images_per_class,
                        transform=train_augmentation
-                       ) for n in range(args.N * args.N)]
+                       ) for n in range(args.N)]
+
 # SECTION
 # groups = []
 # for n in range(args.N * args.N):
@@ -91,12 +91,15 @@ groups = [TrainDataset(args.train_set_path, dataset_name=args.dataset_name, grou
 
 #NOTE: 对应论文里的group，一个group对应一个classifier，也就是同一个颜色的方块集合，一共有N*N组，文章里对应2*2=4组
 
-# val_dataset = TestDataset(args.val_set_path, M=args.M, N=args.N, image_size=args.test_resize)   # ORIGION: val_dataset其实没用
-test_dataset = TestDataset(args.test_set_path, M=args.M, N=args.N, image_size=args.test_resize)     # EDIT v1：还没有用到自适应M
+test_drone_dataset = TestDrone(args.train_set_path, N=args.N, image_size=args.test_resize)
+test_satellite_dataset = TestSatellite(args.test_set_path, N=args.N, image_size=args.test_resize)     # EDIT v1：还没有用到自适应M
 # test_dataset = TestDataset(args.test_set_path, N=args.N, image_size=args.test_resize)     # EDIT v2：用到自适应M
+num_drone_images = len(test_drone_dataset)
+num_satellite_images = len(test_satellite_dataset)
 
 # val_dl = torch.utils.data.DataLoader(dataset=val_dataset, batch_size=1, shuffle=False, num_workers=2, pin_memory=True)  # ORIGION: val_dl最后没用
-test_dl = DataLoader(dataset=test_dataset, batch_size=1, shuffle=False, num_workers=2, pin_memory=True)
+test_drone_dl = DataLoader(dataset=test_drone_dataset, batch_size=1, shuffle=False, num_workers=2, pin_memory=True)
+test_satellite_dl = DataLoader(dataset=test_satellite_dataset, batch_size=1, shuffle=False, num_workers=2, pin_memory=True)
 
 #### Model
 if 'dinov2' in args.backbone.lower():
@@ -111,28 +114,19 @@ if 'dinov2' in args.backbone.lower():
             # 'input_size': 210,
         }
     elif args.dinov2_scheme == 'finetune':
-        if 'salad' in args.aggregator.lower():
-            backbone_info={
-                'scheme': 'finetune',
-                'input_size': args.train_resize,
-                'num_trainable_blocks': 4,
-                'return_token': True,
-                'norm_layer': True,
-            }
-        else:
-            backbone_info = {
-                'scheme': 'finetune',
-                # 'foundation_model_path': '/root/.cache/torch/hub/checkpoints/dinov2_vitb14_pretrain.pth',
-                # 'input_size': (210, 280),
-                'input_size': args.train_resize,
-                'num_trainable_blocks': args.train_blocks_num,
-                'return_token': args.return_token,
-            }
+        backbone_info = {
+            'scheme': 'finetune',
+            # 'foundation_model_path': '/root/.cache/torch/hub/checkpoints/dinov2_vitb14_pretrain.pth',
+            # 'input_size': (210, 280),
+            'input_size': args.train_resize,
+            'num_trainable_blocks': args.train_blocks_num,
+            'return_token': args.return_token,
+        }
 elif 'efficientnet_v2' in args.backbone.lower():
     backbone_info = {
         # 'input_size': (210, 280),
         'input_size': args.train_resize,
-        'layers_to_freeze': 5,
+        'layers_to_freeze': 8
     }
 elif 'efficientnet' in args.backbone.lower():
     backbone_info = {
@@ -147,31 +141,9 @@ elif 'radio' in args.backbone.lower():
         'return_token': args.return_token,
         'pre_norm': args.pre_norm,
     }
-elif 'resnet' in args.backbone.lower() and 'mixvpr' in args.aggregator.lower():
-    backbone_info = {
-        'input_size': args.train_resize,
-        'layers_to_freeze': 2,
-        'layers_to_crop': [4],
-    }
-elif 'resnet' in args.backbone.lower():
-    backbone_info = {
-        'input_size': args.train_resize,
-        'layers_to_freeze': 2,
-        'layers_to_crop': [],
-    }
 
 if args.aggregator == None:
     agg_config = {}
-elif 'resnet50' in args.backbone.lower() and 'mixvpr' in args.aggregator.lower():
-    agg_config = {
-        'in_channels' : 1024,
-        'in_h' : 20,
-        'in_w' : 20,
-        'out_channels' : 1024,
-        'mix_depth' : 4,
-        'mlp_ratio' : 1,
-        'out_rows' : 4,
-    }
 elif 'mixvpr' in args.aggregator.lower():
     agg_config = {
         # 'in_channels' : 1280,
@@ -185,18 +157,6 @@ elif 'mixvpr' in args.aggregator.lower():
 elif 'gem' in args.aggregator.lower():
     agg_config={
         'p': 3,
-    }
-elif 'cosplace' in args.aggregator.lower():
-    agg_config={
-        # 'in_dim': 
-        'out_dim': 2048,
-    }
-elif 'salad' in args.aggregator.lower():
-    agg_config={
-        'num_channels': 768,
-        'num_clusters': 64,
-        'cluster_dim': 128,
-        'token_dim': 256,
     }
 else:
     agg_config = {}
@@ -245,8 +205,6 @@ elif args.classifier_type == "FC_CE":
     #REVIEW: LinearLayer这是什么？
 elif args.classifier_type == "ACLC":
     classifiers = [ACLC(model.feature_dim, group.get_classes_num(), s=args.lmcc_s, m=args.lmcc_m) for group in groups]
-elif args.classifier_type == "QAMC":
-    classifiers = [QAMC(model.feature_dim, group.get_classes_num(), s=args.lmcc_s, m=args.lmcc_m) for group in groups]
 
 
 classifiers_optimizers = [torch.optim.Adam(classifier.parameters(), lr=args.classifier_lr) for classifier in classifiers]
@@ -317,8 +275,14 @@ for epoch_num in range(start_epoch_num, args.epochs_num):
     tqdm_bar = tqdm(range(args.iterations_per_epoch), ncols=100, desc="")
     #NOTE: tqmd.tqmd修饰一个可迭代对象，返回一个与原始可迭代对象完全相同的迭代器，但每次请求值时都会打印一个动态更新的进度条。
     for iteration in tqdm_bar:
-        images, labels, _ = next(dataloader_iterator)   # return tensor_image, class_num, class_center
-        images, labels = images.to(args.device), labels.to(args.device)
+        images, labels = next(dataloader_iterator)   # return tensor_image, class_num, class_center
+        # images, labels = images.to(args.device), labels.to(args.device)
+        drone_images = images[:, 0, :, :, :].squeeze(1)    # 取出无人机图像
+        satellite_images = images[:, 1, :, :, :].squeeze(1)    # 取出卫星图像
+
+        labels = labels[:, 0]   # 直接得到batch size的长度的tensor
+
+        drone_images, satellite_images, labels = drone_images.to(args.device), satellite_images.to(args.device), labels.to(args.device)
 
         optimizer.zero_grad()
         classifiers_optimizers[current_group_num].zero_grad()
@@ -327,23 +291,30 @@ for epoch_num in range(start_epoch_num, args.epochs_num):
         # ORIGION 
         with torch.autocast('cuda'):    # EDIT
             # LINK: https://pytorch.org/docs/stable/amp.html
-            descriptors = model(images)
-            # 1) 'output' is respectively the angular or cosine margin, of the AMCC or LMCC.
-            # 2) 'logits' are the logits obtained multiplying the embedding for the
-            # AMCC/LMCC weights. They are used to compute tha accuracy on the train batches 
-            output, logits = classifiers[current_group_num](descriptors, labels)
-            loss = cross_entropy_loss(output, labels)
+            
+            drone_descriptors = model(drone_images)
+            satellite_descriptors = model(satellite_images)
+            drone_output, drone_logits = classifiers[current_group_num](drone_descriptors, labels)
+            satellite_output, satellite_logits = classifiers[current_group_num](satellite_descriptors, labels)
+            loss = cross_entropy_loss(drone_output, labels) + cross_entropy_loss(satellite_output, labels)
+
+            # descriptors = model(images)
+            # # 1) 'output' is respectively the angular or cosine margin, of the AMCC or LMCC.
+            # # 2) 'logits' are the logits obtained multiplying the embedding for the
+            # # AMCC/LMCC weights. They are used to compute tha accuracy on the train batches 
+            # output, logits = classifiers[current_group_num](descriptors, labels)
+            # loss = cross_entropy_loss(output, labels)
 
         scaler.scale(loss).backward()
         scaler.step(optimizer)
         scaler.step(classifiers_optimizers[current_group_num])
         scaler.update()
 
-        train_acc.update(logits, labels)    # ORIGION
+        train_acc.update(drone_logits, labels)    # ORIGION
         # train_acc.update(logits.transpose(0,1),labels)  # EDIT
         train_loss.update(loss.item())
         tqdm_bar.set_description(f"{loss.item():.1f}")
-        del loss, images, output
+        del loss, images, drone_output, satellite_output
         _ = tqdm_bar.refresh()  # ORIGION
         _ = tqdm_bar.update()   # EDIT
 
@@ -351,7 +322,7 @@ for epoch_num in range(start_epoch_num, args.epochs_num):
     util.move_to_device(classifiers_optimizers[current_group_num], "cpu")
 
     #### Validation
-    val_lr_str = he_test.inference(args, model, classifiers, test_dl, groups, len(test_dataset))
+    test_lr_str = sues_inference.inference(args, model, drone_dl=test_drone_dl, satellite_dl=test_satellite_dl, num_drone_images=num_drone_images, num_satellite_images=num_satellite_images)  # ANCHOR
 
     train_acc = train_acc.compute() * 100
     train_loss = train_loss.compute()
@@ -367,7 +338,7 @@ for epoch_num in range(start_epoch_num, args.epochs_num):
                  f"not improved for {scheduler.num_bad_epochs}/{args.scheduler_patience} epochs, " +
                  f"lr: {round(optimizer.param_groups[0]['lr'], 21)}, " +
                  f"classifier_lr: {round(classifiers_optimizers[current_group_num].param_groups[0]['lr'], 21)}")
-    logging.info(f"E{epoch_num: 3d}, Val LR: {val_lr_str}") # NOTE 测试召回率？
+    logging.info(f"E{epoch_num: 3d}, Val LR: {test_lr_str}") # NOTE 测试召回率？
 
     # logging.info(f"E{epoch_num: 3d}, Val height LR: {val_h_str}")   # EDIT 加上高度分类正确率的百分比
 
@@ -383,7 +354,7 @@ for epoch_num in range(start_epoch_num, args.epochs_num):
     }, is_best, args.save_dir)
     torch.cuda.empty_cache()
 
-test_lr_str = he_test.inference(args, model, classifiers, test_dl, groups, len(test_dataset))  # ANCHOR
+test_lr_str = sues_inference.inference(args, model, drone_dl=test_drone_dl, satellite_dl=test_satellite_dl, num_drone_images=num_drone_images, num_satellite_images=num_satellite_images)  # ANCHOR
 # test_lr_str, test_h_str = test.inference(args, model, classifiers, test_dl, groups, len(test_dataset))  # REVIEW
 
 logging.info(f"Test LR: {test_lr_str}")
