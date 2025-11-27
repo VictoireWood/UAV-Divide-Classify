@@ -35,13 +35,12 @@ def compute_pred(criterion, descriptors):
     else:
         # Using AMCC/LMCC
         # return torch.mm(descriptors, criterion.weight.t())
-        
         try:
             p = torch.mm(descriptors, criterion.weight.t())
             return p
         except:
             p = torch.mm(descriptors, criterion.weight)
-            return p
+            return p    # 返回的是描述子和各个class原型向量的相似度
 
 
 #### Validation
@@ -525,7 +524,7 @@ def inference_he_output_ransac(args, model, classifiers, test_dl, groups, images
                 top5_classes_images_list = []
                 query_descriptor = queries_descriptors[i]
                 query_descriptor = query_descriptor.astype(np.float32)
-                for topk_idx in range(4):   # 这里确定使用前多少个class作为检索区域
+                for topk_idx in range(3):   # 这里确定使用前多少个class作为检索区域
                     class_id = pred_top5_class_ids[query_i, images_idx, topk_idx]
                     class_id = tuple(int(x) for x in class_id.tolist())
                     images_paths_current_class = images_per_class[class_id]
@@ -652,4 +651,165 @@ def inference_he_output_ransac(args, model, classifiers, test_dl, groups, images
     return gcd_str, images_info_update, ransac_str, ransac_with_weight_str, mid_patch_top1_str, mid_patch_with_weight_str
 
 
+import time
+import psutil
 
+# global perf flags (GPU)
+torch.backends.cudnn.benchmark = True
+torch.set_grad_enabled(False)
+def inference_time_count(args, model, classifiers, test_dl, groups, images_info, class_subset_count):
+    gpu_memory_usage = []  # 记录显存使用
+    cpu_memory_usage = []  # 记录CPU内存使用
+    num_test = len(images_info) # 推理图像的数量
+    model = model.eval()
+    classifiers = [c.to(args.device) for c in classifiers]
+
+    # 添加pred_top5_class_ids的定义
+    pred_top5_class_ids = torch.zeros(num_test, 5, 2).type(torch.int64)
+
+
+    all_preds_utm_centers = [center for group in groups for center in group.class_centers]
+    all_preds_utm_centers = torch.tensor(all_preds_utm_centers).to(args.device)
+    # print(f"all_preds_utm_centers: {all_preds_utm_centers}")
+
+    # 加载检索所需数据
+    cache_filename = f"cache/{args.dataset_name}_M{args.M}_N{args.N}_mipc{args.min_images_per_class}_retrieval.torch"
+    images_paths, utmeast_utmnorth, images_per_class, _ = torch.load(cache_filename)
+    descriptors_gallery_path = f'dataloader/{args.dataset_name}_M{args.M}_N{args.N}_mipc{args.min_images_per_class}/descriptors.npy'
+    descriptors_gallery = np.load(descriptors_gallery_path)
+
+    # 统计时间
+    classification_times = []
+    retrieval_times = []
+    
+    distances_top5_total = np.zeros((num_test, 5), dtype=np.float64)
+    distances_top1_total = np.zeros(num_test, dtype=np.float64)
+
+    # warmup
+    warmup_iters = min(5, len(images_info))
+    for i, (image, _) in enumerate(test_dl):
+        if i >= warmup_iters: break
+        image = image.to(args.device)
+        with torch.no_grad():  # 新增：禁用梯度计算
+            _ = model(image)
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+
+    # images_info_update = []
+    with torch.no_grad():
+        for query_i, (image, images_info) in enumerate(tqdm(test_dl, ncols=100)):
+            # 获取推理前的显存
+            # if torch.cuda.is_available():
+            #     torch.cuda.empty_cache()
+            #     gpu_mem_before = torch.cuda.memory_allocated(args.device) / 1024 / 1024  # MB
+            if torch.cuda.is_available():
+                torch.cuda.reset_peak_memory_stats(args.device)
+
+            # 获取加载前的内存
+            process = psutil.Process()
+            cpu_mem_before = process.memory_info().rss / 1024 / 1024  # MB
+            # 记录切图时间
+            # print(images_info)
+            image = image.to(args.device)
+            query_utm = torch.tensor((images_info['utm_e'], images_info['utm_n'])).to(args.device) # 这个是中心点的utm
+
+            # 记录推理开始时间
+            # inference_start = time.time()
+            
+            # 记录分类时间
+            # class_start = time.time()
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+                start_event = torch.cuda.Event(enable_timing=True)
+                end_event = torch.cuda.Event(enable_timing=True)
+                start_event.record()
+            descriptor = model(image)
+            all_preds_confidences = torch.zeros([0], device=args.device)    # 创建一个长度为0的一维张量，相当于一个空张量
+            for j in range(len(classifiers)):
+                pred = compute_pred(classifiers[j], descriptor)
+                all_preds_confidences = torch.cat([all_preds_confidences, pred[0]])
+            
+            topn_pred_class_id = all_preds_confidences.argsort(descending=True)[:max(LR_N)] # 取前五个class
+
+            # 添加query_utm的定义
+            query_utm = torch.tensor((images_info['utm_e'], images_info['utm_n'])).to(args.device)            
+            
+            # 添加检索步骤
+            query_descriptor = descriptor.cpu().numpy().astype(np.float32)
+
+            # 在分类部分添加pred_top5_class_ids的更新
+            all_preds_class_ids = [center for group in groups for center in group.classes_ids]
+            all_preds_class_ids = torch.tensor(all_preds_class_ids).to(args.device)
+            pred_class_id_real = all_preds_class_ids[topn_pred_class_id]
+            pred_top5_class_ids[query_i] = pred_class_id_real[:5]
+            # classification_times.append(time.time() - class_start)
+            if torch.cuda.is_available():
+                end_event.record()
+                torch.cuda.synchronize()
+                classification_times.append(start_event.elapsed_time(end_event) / 1000.0)  # seconds
+            else:
+                # CPU fallback
+                class_start = time.time()
+                _ = descriptor
+                classification_times.append(time.time() - class_start)
+
+            # 获取前class_subset_count个类别
+            top5_classes_images_list = []
+            ######################
+    
+            ######################
+            retrieval_start = time.time()
+            for topk_idx in range(class_subset_count):
+                class_id = pred_top5_class_ids[query_i, topk_idx]
+                class_id = tuple(int(x) for x in class_id.tolist())
+                images_paths_current_class = images_per_class[class_id]
+                top5_classes_images_list.extend(images_paths_current_class) # 整合前top5_classes_images_list对应subset的图像路径
+
+            # 构建FAISS索引并检索
+            images_index_list = [images_paths.index(x) for x in top5_classes_images_list]
+            top5_classes_utms_list = utmeast_utmnorth[images_index_list]
+            database_descriptors = descriptors_gallery[images_index_list]
+            faiss_index = faiss.IndexFlatL2(model.feature_dim)
+            database_descriptors = database_descriptors.astype(np.float32)
+            faiss_index.add(database_descriptors)
+
+            # 检索并计算距离
+            _, pred_indexes = faiss_index.search(query_descriptor.reshape(1, -1), 4)
+            retrieval_utms = top5_classes_utms_list[pred_indexes]
+            retrieval_times.append(time.time()-retrieval_start)
+            query_utm_arr = query_utm.cpu().numpy()
+            
+            # 计算前5个检索结果的距离
+            mid_patch_top5_utms = retrieval_utms[0, :5]
+            mid_patch_top1_utms = retrieval_utms[0, 0]
+            distances_top1 = dist(mid_patch_top1_utms, query_utm_arr)
+            distances_top5 = np.linalg.norm(mid_patch_top5_utms - query_utm_arr, axis=1)
+            distances_top5_total[query_i] = distances_top5
+            distances_top1_total[query_i] = distances_top1
+
+            # if torch.cuda.is_available():
+            #     gpu_mem_after = torch.cuda.memory_allocated(args.device) / 1024 / 1024  # MB
+            #     gpu_memory_usage.append(gpu_mem_after - gpu_mem_before)
+
+            if torch.cuda.is_available():
+                peak_mem = torch.cuda.max_memory_allocated(args.device) / 1024 / 1024
+                gpu_memory_usage.append(peak_mem)
+            # 获取加载后的内存
+            cpu_mem_after = process.memory_info().rss / 1024 / 1024  # MB
+            cpu_memory_usage.append(cpu_mem_after - cpu_mem_before)
+    # 计算结果
+    retrieval_threshold = 100
+    recall_top1 = np.sum(distances_top1_total < retrieval_threshold) / num_test * 100
+    mask = np.any(distances_top5_total < retrieval_threshold, axis=1)
+    recall_top5 = np.sum(mask) / num_test * 100
+    avg_classification_time = np.mean(classification_times)
+    avg_retrieval_time = np.mean(retrieval_times)
+    avg_inference_time = avg_classification_time + avg_retrieval_time
+
+    result_str = f'R@1: {recall_top1:.2f}, R@5: {recall_top5:.2f}\n'
+    # result_str += f'Average cut time: {avg_cut_time:.4f}s\n'
+    result_str += f'Average inference time: {avg_inference_time:.4f}s\n'
+    result_str += f'Average classification time: {avg_classification_time:.4f}s\n'
+    result_str += f'Average retrieval time: {avg_retrieval_time:.4f}s'
+
+    return result_str, gpu_memory_usage, cpu_memory_usage

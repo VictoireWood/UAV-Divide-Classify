@@ -507,7 +507,6 @@ class PrepareDescriptor(torch.utils.data.Dataset):
         image_path = self.images_paths[index]
         abs_image_path = self.train_path + image_path
         pil_image = open_image(abs_image_path)
-        # Pick a random image among the ones in this class.
         tensor_image = self.transform(pil_image)
 
         return tensor_image, index
